@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -53,5 +54,17 @@ func TestHighlightRespectsNoColor(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	if got := highlight("row"); got != "row" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestHelpNeedsSelection(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := New("/tmp", config.Config{})
+	if strings.Contains(m.View().Content, "remove group") {
+		t.Fatal("help shown without selection")
+	}
+	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}}
+	if !strings.Contains(m.View().Content, "remove group") {
+		t.Fatal("missing selected help")
 	}
 }

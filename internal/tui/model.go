@@ -231,7 +231,7 @@ func (m Model) pickRepos(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 func (m Model) View() tea.View {
 	var b strings.Builder
-	b.WriteString(style("1;38;5;81", "gwt") + "  " + style("2", "n:new  d:remove  enter:shell  e:editor  a:agent  p:prune  q:quit") + "\n\n")
+	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
 	if m.selecting {
 		b.WriteString(style("1;38;5;141", "new "+m.branch) + "\n\n")
 		for i, repo := range m.repos {
@@ -281,7 +281,7 @@ func (m Model) View() tea.View {
 	}
 	b.WriteString("\n" + style("2", m.message))
 	if branch != "" {
-		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
+		b.WriteString("\n" + style("1", "n") + " new  " + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
 	}
 	if m.input {
 		b.WriteString(m.branch)
