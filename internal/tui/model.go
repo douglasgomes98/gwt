@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -215,15 +216,11 @@ func (m Model) View() tea.View {
 	for i, item := range m.items {
 		if item.Branch != last {
 			last = item.Branch
-			radio := style("2", "○")
+			header := last + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
 			if last == branch {
-				radio = style("1;38;5;114", "◉")
+				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%d worktrees selected", m.groupSize(last)))
 			}
-			header := radio + " [" + last + "]"
-			if last == branch {
-				header += "  " + style("1;38;5;114", fmt.Sprintf("%d repos selected", m.groupSize(last)))
-			}
-			b.WriteString(style("1;38;5;141", header) + "\n")
+			b.WriteString(header + "\n")
 		}
 		mark := " "
 		radio := style("2", "○")
@@ -234,7 +231,9 @@ func (m Model) View() tea.View {
 		if i == m.cursor {
 			mark = "›"
 		}
-		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), itemStatus(item))
+		repo := style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo))
+		path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
+		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
 		if selected {
 			row = highlight(row)
 		}
@@ -254,6 +253,8 @@ func (m Model) View() tea.View {
 	}
 	return tea.NewView(b.String())
 }
+
+func displayPath(path string) string { return filepath.Base(path) }
 
 func (m Model) selectedBranch() string {
 	if m.cursor < 0 || m.cursor >= len(m.items) || m.items[m.cursor].Primary {

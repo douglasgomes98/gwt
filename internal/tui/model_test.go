@@ -81,3 +81,9 @@ func TestPrimaryProjectsStartUnselected(t *testing.T) {
 		t.Fatal("space must select primary project")
 	}
 }
+
+func TestDisplayPathUsesWorktreeDirectory(t *testing.T) {
+	if got := displayPath("/Users/me/dev/api.AG-1"); got != "api.AG-1" {
+		t.Fatalf("got %q", got)
+	}
+}
