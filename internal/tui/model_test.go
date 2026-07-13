@@ -108,6 +108,17 @@ func TestArrowsDoNotSelectWorktreeGroup(t *testing.T) {
 	}
 }
 
+func TestEscapeClearsSelections(t *testing.T) {
+	m := New("/tmp", config.Config{})
+	m.group = "AG-1"
+	m.projects = map[string]bool{"/tmp/api": true}
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m = updated.(Model)
+	if m.group != "" || m.projectCount() != 0 {
+		t.Fatal("escape must clear selections")
+	}
+}
+
 func TestDisplayPathUsesWorktreeDirectory(t *testing.T) {
 	if got := displayPath("/Users/me/dev/api.AG-1"); got != "api.AG-1" {
 		t.Fatalf("got %q", got)

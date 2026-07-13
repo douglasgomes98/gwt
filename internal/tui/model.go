@@ -126,6 +126,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch x.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "esc":
+			m.group = ""
+			for path := range m.projects {
+				m.projects[path] = false
+			}
+			m.message = "selection cleared"
 		case "down", "j":
 			if m.cursor < len(m.items)-1 {
 				m.cursor++
@@ -257,7 +263,7 @@ func (m Model) View() tea.View {
 		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
 	}
 	if m.projectCount() > 0 || branch != "" {
-		b.WriteString("  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
+		b.WriteString("  " + style("1", "esc") + " cancel  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
 	}
 	if m.input {
 		b.WriteString(m.branch)
