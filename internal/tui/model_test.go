@@ -13,6 +13,7 @@ import (
 func TestDeleteNeedsConfirmation(t *testing.T) {
 	m := New("/tmp", config.Config{})
 	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/tmp/api.AG-1"}}
+	m.group = "AG-1"
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
 	if !updated.(Model).confirm {
 		t.Fatal("delete must require confirmation")
@@ -34,6 +35,7 @@ func TestSelectionUsesWholeBranchGroup(t *testing.T) {
 	m := New("/tmp", config.Config{})
 	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}, {Repo: "web", Branch: "AG-1"}, {Repo: "api", Branch: "AG-2"}}
 	m.cursor = 1
+	m.group = "AG-1"
 	if got := m.selectedBranch(); got != "AG-1" {
 		t.Fatalf("got %q", got)
 	}
@@ -64,6 +66,7 @@ func TestHelpNeedsSelection(t *testing.T) {
 		t.Fatal("help shown without selection")
 	}
 	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}}
+	m.group = "AG-1"
 	if !strings.Contains(m.View().Content, "remove group") {
 		t.Fatal("missing selected help")
 	}
@@ -79,6 +82,20 @@ func TestPrimaryProjectsStartUnselected(t *testing.T) {
 	updated, _ := m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
 	if updated.(Model).projectCount() != 1 {
 		t.Fatal("space must select primary project")
+	}
+}
+
+func TestArrowsDoNotSelectWorktreeGroup(t *testing.T) {
+	m := New("/tmp", config.Config{})
+	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}, {Repo: "web", Branch: "AG-2"}}
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "j"})
+	m = updated.(Model)
+	if m.selectedBranch() != "" {
+		t.Fatal("arrow navigation selected a group")
+	}
+	updated, _ = m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
+	if updated.(Model).selectedBranch() != "AG-2" {
+		t.Fatal("space must select focused group")
 	}
 }
 

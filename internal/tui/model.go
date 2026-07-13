@@ -22,6 +22,7 @@ type Model struct {
 	input    bool
 	branch   string
 	projects map[string]bool
+	group    string
 	message  string
 	detailed bool
 }
@@ -104,7 +105,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.confirm {
 			if x.String() == "y" && len(m.items) > 0 {
-				branch := m.items[m.cursor].Branch
+				branch := m.group
 				for _, item := range m.items {
 					if item.Branch == branch {
 						if err := worktree.Remove(repoFor(m.cwd, item.Repo), branch); err != nil {
@@ -134,7 +135,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "d":
-			if len(m.items) > 0 && !m.items[m.cursor].Primary {
+			if m.group != "" {
 				m.confirm = true
 				m.message = "remove all worktrees for this branch? y/N"
 			}
@@ -153,21 +154,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.message = "branch: "
 			}
 		case " ", "space":
-			if len(m.items) > 0 && m.items[m.cursor].Primary {
-				path := m.items[m.cursor].Path
-				m.projects[path] = !m.projects[path]
+			if len(m.items) > 0 {
+				item := m.items[m.cursor]
+				if item.Primary {
+					m.projects[item.Path] = !m.projects[item.Path]
+				} else if m.group == item.Branch {
+					m.group = ""
+				} else {
+					m.group = item.Branch
+				}
 			}
 		case "enter":
-			if len(m.items) > 0 {
-				return m, openShell(m.items[m.cursor].Path)
+			if item, ok := m.activeItem(); ok {
+				return m, openShell(item.Path)
 			}
 		case "e":
-			if len(m.items) > 0 {
-				return m, run(m.config.Editor, m.items[m.cursor].Path)
+			if item, ok := m.activeItem(); ok {
+				return m, run(m.config.Editor, item.Path)
 			}
 		case "a":
-			if len(m.items) > 0 {
-				return m, run(m.config.Agent, m.items[m.cursor].Path)
+			if item, ok := m.activeItem(); ok {
+				return m, run(m.config.Agent, item.Path)
 			}
 		}
 	}
@@ -257,10 +264,22 @@ func (m Model) View() tea.View {
 func displayPath(path string) string { return filepath.Base(path) }
 
 func (m Model) selectedBranch() string {
-	if m.cursor < 0 || m.cursor >= len(m.items) || m.items[m.cursor].Primary {
-		return ""
+	return m.group
+}
+
+func (m Model) activeItem() (worktree.Item, bool) {
+	if m.group == "" {
+		return worktree.Item{}, false
 	}
-	return m.items[m.cursor].Branch
+	if m.cursor >= 0 && m.cursor < len(m.items) && m.items[m.cursor].Branch == m.group {
+		return m.items[m.cursor], true
+	}
+	for _, item := range m.items {
+		if item.Branch == m.group {
+			return item, true
+		}
+	}
+	return worktree.Item{}, false
 }
 
 func (m Model) groupSize(branch string) int {
