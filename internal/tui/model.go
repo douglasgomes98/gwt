@@ -104,7 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.typeBranch(x)
 		}
 		if m.confirm {
-			if x.String() == "y" && len(m.items) > 0 {
+			if (x.String() == "y" || x.String() == "enter") && len(m.items) > 0 {
 				branch := m.group
 				for _, item := range m.items {
 					if item.Branch == branch {
@@ -114,7 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 				}
-				if m.message == "remove all worktrees for this branch? y/N" {
+				if m.message == "remove all worktrees for this branch? y/Enter/N" {
 					m.message = "removed " + branch
 				}
 				m.confirm = false
@@ -143,7 +143,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "d":
 			if m.group != "" && m.canRemoveGroup() {
 				m.confirm = true
-				m.message = "remove all worktrees for this branch? y/N"
+				m.message = "remove all worktrees for this branch? y/Enter/N"
 			}
 		case "p":
 			repos, _ := worktree.Repos(m.cwd)

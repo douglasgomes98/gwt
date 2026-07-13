@@ -20,6 +20,17 @@ func TestDeleteNeedsConfirmation(t *testing.T) {
 	}
 }
 
+func TestEnterConfirmsDelete(t *testing.T) {
+	m := New("/tmp", config.Config{})
+	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/tmp/api.AG-1"}}
+	m.group = "AG-1"
+	m.confirm = true
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if updated.(Model).confirm {
+		t.Fatal("enter must confirm deletion")
+	}
+}
+
 func TestStyleRespectsNoColor(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	if got := style("1", "text"); got != "text" {
