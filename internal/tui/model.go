@@ -24,44 +24,68 @@ type Model struct {
 	repos     []string
 	selected  map[string]bool
 	message   string
+	detailed  bool
 }
 type loaded struct {
-	items []worktree.Item
-	err   error
+	items    []worktree.Item
+	err      error
+	detailed bool
 }
+type operationResult struct{ err error }
 
 func New(cwd string, c config.Config) Model { return Model{cwd: cwd, config: c, message: "loading…"} }
-func (m Model) Init() tea.Cmd               { return m.load }
-func (m Model) load() tea.Msg {
-	repos, err := worktree.Repos(m.cwd)
-	if err != nil {
-		return loaded{err: err}
-	}
-	var items []worktree.Item
-	for _, repo := range repos {
-		_ = worktree.Fetch(repo, m.config.BaseBranch)
-		xs, err := worktree.List(repo)
+func (m Model) Init() tea.Cmd               { return m.reload() }
+func (m Model) reload() tea.Cmd             { return tea.Batch(m.load(false), m.load(true)) }
+func (m Model) load(detailed bool) tea.Cmd {
+	return func() tea.Msg {
+		repos, err := worktree.Repos(m.cwd)
 		if err != nil {
-			return loaded{err: err}
+			return loaded{err: err, detailed: detailed}
 		}
-		items = append(items, xs...)
+		var items []worktree.Item
+		for _, repo := range repos {
+			var xs []worktree.Item
+			if detailed {
+				xs, err = worktree.List(repo)
+			} else {
+				xs, err = worktree.ListFast(repo)
+			}
+			if err != nil {
+				return loaded{err: err, detailed: detailed}
+			}
+			items = append(items, xs...)
+		}
+		sort.Slice(items, func(i, j int) bool {
+			if items[i].Branch == items[j].Branch {
+				return items[i].Repo < items[j].Repo
+			}
+			return items[i].Branch < items[j].Branch
+		})
+		return loaded{items: items, detailed: detailed}
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Branch == items[j].Branch {
-			return items[i].Repo < items[j].Repo
-		}
-		return items[i].Branch < items[j].Branch
-	})
-	return loaded{items: items}
 }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch x := msg.(type) {
 	case loaded:
+		if m.detailed && !x.detailed {
+			return m, nil
+		}
+		if x.err != nil {
+			if !x.detailed || !m.detailed {
+				m.message = x.err.Error()
+			}
+			return m, nil
+		}
 		m.items = x.items
+		m.detailed = x.detailed
+		m.message = fmt.Sprintf("%d worktrees", len(m.items))
+		if !m.detailed {
+			m.message += " (checking status…)"
+		}
+		return m, nil
+	case operationResult:
 		if x.err != nil {
 			m.message = x.err.Error()
-		} else {
-			m.message = fmt.Sprintf("%d worktrees", len(m.items))
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -86,7 +110,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.message = "removed " + branch
 				}
 				m.confirm = false
-				return m, m.load
+				return m, m.reload()
 			}
 			m.confirm = false
 			return m, nil
@@ -112,7 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for _, repo := range repos {
 				_ = worktree.Prune(repo)
 			}
-			return m, m.load
+			return m, m.reload()
 		case "n":
 			m.input = true
 			m.branch = ""
@@ -201,7 +225,7 @@ func (m Model) pickRepos(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.selecting = false
 		m.cursor = 0
 		m.message = "created " + m.branch
-		return m, m.load
+		return m, m.reload()
 	}
 	return m, nil
 }
@@ -261,14 +285,14 @@ func openShell(dir string) tea.Cmd {
 	if sh == "" {
 		sh = "/bin/sh"
 	}
-	return tea.ExecProcess(exec.Command(sh), func(err error) tea.Msg { return loaded{err: err} })
+	return tea.ExecProcess(exec.Command(sh), func(err error) tea.Msg { return operationResult{err} })
 }
 func run(command, dir string) tea.Cmd {
 	if command == "" {
-		return func() tea.Msg { return loaded{err: fmt.Errorf("command is not configured")} }
+		return func() tea.Msg { return operationResult{fmt.Errorf("command is not configured")} }
 	}
 	parts := strings.Fields(command)
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = dir
-	return tea.ExecProcess(cmd, func(err error) tea.Msg { return loaded{err: err} })
+	return tea.ExecProcess(cmd, func(err error) tea.Msg { return operationResult{err} })
 }

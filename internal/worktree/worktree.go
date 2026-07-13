@@ -20,7 +20,7 @@ func Root(cwd string) string {
 	if !git.IsRepo(cwd) {
 		return cwd
 	}
-	items, err := List(cwd)
+	items, err := ListFast(cwd)
 	if err != nil || len(items) == 0 {
 		return cwd
 	}
@@ -34,11 +34,11 @@ func Repos(cwd string) ([]string, error) {
 		return nil, err
 	}
 	var repos []string
-	if git.IsRepo(root) && primary(root) {
+	if primary(root) {
 		repos = append(repos, root)
 	}
 	for _, e := range entries {
-		if e.IsDir() && git.IsRepo(filepath.Join(root, e.Name())) && primary(filepath.Join(root, e.Name())) {
+		if e.IsDir() && primary(filepath.Join(root, e.Name())) {
 			repos = append(repos, filepath.Join(root, e.Name()))
 		}
 	}
@@ -49,7 +49,7 @@ func CurrentRepo(cwd string) (string, error) {
 	if !git.IsRepo(cwd) {
 		return "", fmt.Errorf("%s is not a Git repository", cwd)
 	}
-	items, err := List(cwd)
+	items, err := ListFast(cwd)
 	if err != nil || len(items) == 0 {
 		return "", fmt.Errorf("cannot resolve primary checkout for %s", cwd)
 	}
@@ -57,6 +57,22 @@ func CurrentRepo(cwd string) (string, error) {
 }
 
 func List(repo string) ([]Item, error) {
+	items, err := ListFast(repo)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		status, _ := git.Run(items[i].Path, "status", "--porcelain")
+		items[i].Dirty = strings.TrimSpace(status) != ""
+		counts, err := git.Run(items[i].Path, "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
+		if err == nil {
+			fmt.Sscanf(counts, "%d %d", &items[i].Behind, &items[i].Ahead)
+		}
+	}
+	return items, nil
+}
+
+func ListFast(repo string) ([]Item, error) {
 	out, err := git.Run(repo, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
@@ -72,24 +88,12 @@ func List(repo string) ([]Item, error) {
 			current.Branch = strings.TrimPrefix(line, "branch refs/heads/")
 		}
 	}
-	for i := range items {
-		status, _ := git.Run(items[i].Path, "status", "--porcelain")
-		items[i].Dirty = strings.TrimSpace(status) != ""
-		counts, err := git.Run(items[i].Path, "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
-		if err == nil {
-			fmt.Sscanf(counts, "%d %d", &items[i].Behind, &items[i].Ahead)
-		}
-	}
 	return items, nil
 }
 
 func primary(dir string) bool {
-	items, err := List(dir)
-	if err != nil || len(items) == 0 {
-		return false
-	}
-	top, err := git.Run(dir, "rev-parse", "--show-toplevel")
-	return err == nil && filepath.Clean(strings.TrimSpace(top)) == filepath.Clean(items[0].Path)
+	info, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil && info.IsDir()
 }
 
 func Path(repo, branch string, c config.Config) string {

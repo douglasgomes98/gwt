@@ -89,8 +89,9 @@ As flags de abertura são mutuamente exclusivas:
 | `j` / `k` ou setas | Move a seleção. |
 | `q` | Sai. |
 
-Ao carregar a TUI, o `gwt` tenta atualizar a branch base de cada repositório.
-Uma falha de fetch não impede a navegação.
+Ao criar worktrees pela TUI, o `gwt` atualiza a branch base dos repositórios
+selecionados antes da criação. A tela inicial usa o estado local para abrir
+imediatamente, sem esperar pela rede.
 
 ## Configuração
 
