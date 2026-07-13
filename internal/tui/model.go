@@ -263,15 +263,16 @@ func (m Model) View() tea.View {
 			b.WriteString(style("1;38;5;141", header) + "\n")
 		}
 		mark := " "
+		radio := style("2", "○")
 		if item.Branch == branch {
-			mark = "·"
+			radio = style("1;38;5;114", "◉")
 		}
 		if i == m.cursor {
 			mark = "›"
 		}
-		row := fmt.Sprintf("%s %s %s %s", mark, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), itemStatus(item))
+		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), itemStatus(item))
 		if item.Branch == branch {
-			row = style("48;5;238;1", row)
+			row = highlight(row)
 		}
 		b.WriteString(row + "\n")
 	}
@@ -337,6 +338,14 @@ func style(code, text string) string {
 		return text
 	}
 	return "\033[" + code + "m" + text + "\033[0m"
+}
+
+func highlight(text string) string {
+	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+		return text
+	}
+	const background = "\033[48;5;238m"
+	return background + strings.ReplaceAll(text, "\033[0m", "\033[0m"+background) + "\033[0m"
 }
 
 func repoColor(repo string) string {

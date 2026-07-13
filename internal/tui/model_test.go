@@ -48,3 +48,10 @@ func TestItemStatusUsesWords(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestHighlightRespectsNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	if got := highlight("row"); got != "row" {
+		t.Fatalf("got %q", got)
+	}
+}
