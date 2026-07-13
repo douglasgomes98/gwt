@@ -252,8 +252,12 @@ func (m Model) View() tea.View {
 	b.WriteString("\n" + style("2", m.message))
 	if m.projectCount() > 0 {
 		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%d projects selected", m.projectCount())) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
-	} else if branch != "" {
+	}
+	if branch != "" {
 		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
+	}
+	if m.projectCount() > 0 || branch != "" {
+		b.WriteString("  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
 	}
 	if m.input {
 		b.WriteString(m.branch)
