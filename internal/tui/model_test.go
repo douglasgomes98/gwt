@@ -28,3 +28,23 @@ func TestStyleRespectsNoColor(t *testing.T) {
 		t.Fatal("missing repo color")
 	}
 }
+
+func TestSelectionUsesWholeBranchGroup(t *testing.T) {
+	m := New("/tmp", config.Config{})
+	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}, {Repo: "web", Branch: "AG-1"}, {Repo: "api", Branch: "AG-2"}}
+	m.cursor = 1
+	if got := m.selectedBranch(); got != "AG-1" {
+		t.Fatalf("got %q", got)
+	}
+	if got := m.groupSize(m.selectedBranch()); got != 2 {
+		t.Fatalf("got %d", got)
+	}
+}
+
+func TestItemStatusUsesWords(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	got := itemStatus(worktree.Item{Changes: 2, Ahead: 1, Behind: 3})
+	if got != "(2 files changed · ahead 1 · behind 3)" {
+		t.Fatalf("got %q", got)
+	}
+}

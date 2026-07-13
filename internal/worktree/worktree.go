@@ -13,6 +13,7 @@ import (
 type Item struct {
 	Repo, Branch, Path string
 	Dirty              bool
+	Changes            int
 	Ahead, Behind      int
 }
 
@@ -64,6 +65,9 @@ func List(repo string) ([]Item, error) {
 	for i := range items {
 		status, _ := git.Run(items[i].Path, "status", "--porcelain")
 		items[i].Dirty = strings.TrimSpace(status) != ""
+		if trimmed := strings.TrimSpace(status); trimmed != "" {
+			items[i].Changes = strings.Count(trimmed, "\n") + 1
+		}
 		counts, err := git.Run(items[i].Path, "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
 		if err == nil {
 			fmt.Sscanf(counts, "%d %d", &items[i].Behind, &items[i].Ahead)

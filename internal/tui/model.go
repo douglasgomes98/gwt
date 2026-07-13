@@ -232,22 +232,45 @@ func (m Model) pickRepos(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "  " + style("2", "n:new  d:remove  enter:shell  e:editor  a:agent  p:prune  q:quit") + "\n\n")
+	if m.selecting {
+		b.WriteString(style("1;38;5;141", "new "+m.branch) + "\n\n")
+		for i, repo := range m.repos {
+			cursor, radio := " ", "○"
+			if i == m.cursor {
+				cursor = "›"
+			}
+			if m.selected[repo] {
+				radio = style("1;38;5;114", "◉")
+			}
+			fmt.Fprintf(&b, "%s %s %s\n", cursor, radio, style(repoColor(repo), repo))
+		}
+		b.WriteString("\n" + style("1", fmt.Sprintf("%d repos selected", m.selectedCount())) + "  " + style("2", "space: toggle  enter: create  esc: cancel"))
+		return tea.NewView(b.String())
+	}
 	last := ""
+	branch := m.selectedBranch()
 	for i, item := range m.items {
 		if item.Branch != last {
 			last = item.Branch
-			b.WriteString(style("1;38;5;141", "["+last+"]") + "\n")
+			radio := style("2", "○")
+			if last == branch {
+				radio = style("1;38;5;114", "◉")
+			}
+			header := radio + " [" + last + "]"
+			if last == branch {
+				header += "  " + style("1;38;5;114", fmt.Sprintf("%d repos selected", m.groupSize(last)))
+			}
+			b.WriteString(style("1;38;5;141", header) + "\n")
 		}
 		mark := " "
+		if item.Branch == branch {
+			mark = "·"
+		}
 		if i == m.cursor {
 			mark = "›"
 		}
-		dirty := ""
-		if item.Dirty {
-			dirty = " " + style("1;38;5;208", "dirty")
-		}
-		row := fmt.Sprintf("%s %s %s%s %s/%s", mark, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), dirty, style("38;5;114", fmt.Sprintf("+%d", item.Ahead)), style("38;5;203", fmt.Sprintf("-%d", item.Behind)))
-		if i == m.cursor {
+		row := fmt.Sprintf("%s %s %s %s", mark, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), itemStatus(item))
+		if item.Branch == branch {
 			row = style("48;5;238;1", row)
 		}
 		b.WriteString(row + "\n")
@@ -256,24 +279,57 @@ func (m Model) View() tea.View {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
 	b.WriteString("\n" + style("2", m.message))
+	if branch != "" {
+		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
+	}
 	if m.input {
 		b.WriteString(m.branch)
 	}
-	if m.selecting {
-		b.WriteString("\nselect repositories:\n")
-		for i, repo := range m.repos {
-			cursor := " "
-			if i == m.cursor {
-				cursor = ">"
-			}
-			checked := " "
-			if m.selected[repo] {
-				checked = "x"
-			}
-			fmt.Fprintf(&b, "%s [%s] %s\n", cursor, checked, repo)
+	return tea.NewView(b.String())
+}
+
+func (m Model) selectedBranch() string {
+	if m.cursor < 0 || m.cursor >= len(m.items) {
+		return ""
+	}
+	return m.items[m.cursor].Branch
+}
+
+func (m Model) groupSize(branch string) int {
+	n := 0
+	for _, item := range m.items {
+		if item.Branch == branch {
+			n++
 		}
 	}
-	return tea.NewView(b.String())
+	return n
+}
+
+func (m Model) selectedCount() int {
+	n := 0
+	for _, selected := range m.selected {
+		if selected {
+			n++
+		}
+	}
+	return n
+}
+
+func itemStatus(item worktree.Item) string {
+	var parts []string
+	if item.Changes > 0 {
+		parts = append(parts, style("1;38;5;208", fmt.Sprintf("%d files changed", item.Changes)))
+	}
+	if item.Ahead > 0 {
+		parts = append(parts, style("38;5;114", fmt.Sprintf("ahead %d", item.Ahead)))
+	}
+	if item.Behind > 0 {
+		parts = append(parts, style("38;5;203", fmt.Sprintf("behind %d", item.Behind)))
+	}
+	if len(parts) == 0 {
+		parts = append(parts, style("2", "clean"))
+	}
+	return "(" + strings.Join(parts, style("2", " · ")) + ")"
 }
 
 func style(code, text string) string {
