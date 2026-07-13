@@ -83,7 +83,7 @@ func TestHelpNeedsSelection(t *testing.T) {
 
 func TestPrimaryProjectsStartUnselected(t *testing.T) {
 	m := New("/tmp", config.Config{})
-	m.items = []worktree.Item{{Repo: "api", Path: "/tmp/api", Primary: true}}
+	m.items = []worktree.Item{{Repo: "api", Branch: "main", Path: "/tmp/api", Primary: true}}
 	m.projects = map[string]bool{"/tmp/api": false}
 	if m.projectCount() != 0 {
 		t.Fatal("primary project starts selected")
@@ -116,6 +116,32 @@ func TestEscapeClearsSelections(t *testing.T) {
 	m = updated.(Model)
 	if m.group != "" || m.projectCount() != 0 {
 		t.Fatal("escape must clear selections")
+	}
+}
+
+func TestWorktreeGroupMustBeClearedBeforeChanging(t *testing.T) {
+	m := New("/tmp", config.Config{})
+	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}, {Repo: "web", Branch: "AG-2"}}
+	m.group = "AG-1"
+	m.cursor = 1
+	updated, _ := m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
+	if got := updated.(Model).group; got != "AG-1" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestFeaturePrimaryIsWorktreeGroup(t *testing.T) {
+	m := New("/tmp", config.Config{BaseBranch: "main"})
+	m.items = []worktree.Item{{Branch: "feature", Path: "/tmp/api", Primary: true}}
+	m.projects = map[string]bool{}
+	updated, _ := m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
+	m = updated.(Model)
+	if m.group != "feature" || m.projectCount() != 0 {
+		t.Fatal("feature primary checkout must be a worktree group")
+	}
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+	if updated.(Model).confirm {
+		t.Fatal("primary checkout group must not be removable")
 	}
 }
 

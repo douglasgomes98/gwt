@@ -81,7 +81,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.projects = map[string]bool{}
 		}
 		for _, item := range x.items {
-			if item.Primary {
+			if m.isProject(item) {
 				_, ok := m.projects[item.Path]
 				if !ok {
 					m.projects[item.Path] = false
@@ -141,7 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "d":
-			if m.group != "" {
+			if m.group != "" && m.canRemoveGroup() {
 				m.confirm = true
 				m.message = "remove all worktrees for this branch? y/N"
 			}
@@ -162,8 +162,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case " ", "space":
 			if len(m.items) > 0 {
 				item := m.items[m.cursor]
-				if item.Primary {
+				if m.isProject(item) {
 					m.projects[item.Path] = !m.projects[item.Path]
+				} else if m.group != "" && m.group != item.Branch {
+					m.message = "press esc to change worktree group"
 				} else if m.group == item.Branch {
 					m.group = ""
 				} else {
@@ -198,7 +200,7 @@ func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		for _, item := range m.items {
-			if !item.Primary || !m.projects[item.Path] {
+			if !m.isProject(item) || !m.projects[item.Path] {
 				continue
 			}
 			_ = worktree.Fetch(item.Path, m.config.BaseBranch)
@@ -231,13 +233,13 @@ func (m Model) View() tea.View {
 			last = item.Branch
 			header := last + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
 			if last == branch {
-				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected for removal", worktreeCount(m.groupSize(last))))
+				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(m.groupSize(last))))
 			}
 			b.WriteString(header + "\n")
 		}
 		mark := " "
 		radio := style("2", "○")
-		selected := (!item.Primary && item.Branch == branch) || (item.Primary && m.projects[item.Path])
+		selected := (!m.isProject(item) && item.Branch == branch) || (m.isProject(item) && m.projects[item.Path])
 		if selected {
 			radio = style("1;38;5;114", "◉")
 		}
@@ -260,7 +262,10 @@ func (m Model) View() tea.View {
 		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%s selected for new branch", projectCount(m.projectCount()))) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
 	}
 	if branch != "" {
-		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
+		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent")
+		if m.canRemoveGroup() {
+			b.WriteString("  " + style("1;38;5;208", "d") + " remove group")
+		}
 	}
 	if m.projectCount() > 0 || branch != "" {
 		b.WriteString("  " + style("1", "esc") + " cancel  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
@@ -286,6 +291,23 @@ func plural(n int) string {
 
 func (m Model) selectedBranch() string {
 	return m.group
+}
+
+func (m Model) isProject(item worktree.Item) bool {
+	base := m.config.BaseBranch
+	if base == "" {
+		base = "main"
+	}
+	return item.Primary && item.Branch == base
+}
+
+func (m Model) canRemoveGroup() bool {
+	for _, item := range m.items {
+		if item.Branch == m.group && item.Primary {
+			return false
+		}
+	}
+	return true
 }
 
 func (m Model) activeItem() (worktree.Item, bool) {
