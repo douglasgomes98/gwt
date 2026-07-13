@@ -52,6 +52,15 @@ func TestItemStatusUsesWords(t *testing.T) {
 	}
 }
 
+func TestSelectionCountsNameTheirAction(t *testing.T) {
+	if got := worktreeCount(1); got != "1 worktree" {
+		t.Fatalf("got %q", got)
+	}
+	if got := projectCount(2); got != "2 projects" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestHighlightRespectsNoColor(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	if got := highlight("row"); got != "row" {

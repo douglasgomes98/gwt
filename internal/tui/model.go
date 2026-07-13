@@ -225,7 +225,7 @@ func (m Model) View() tea.View {
 			last = item.Branch
 			header := last + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
 			if last == branch {
-				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%d worktrees selected", m.groupSize(last)))
+				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected for removal", worktreeCount(m.groupSize(last))))
 			}
 			b.WriteString(header + "\n")
 		}
@@ -251,7 +251,7 @@ func (m Model) View() tea.View {
 	}
 	b.WriteString("\n" + style("2", m.message))
 	if m.projectCount() > 0 {
-		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%d projects selected", m.projectCount())) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
+		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%s selected for new branch", projectCount(m.projectCount()))) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
 	}
 	if branch != "" {
 		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
@@ -266,6 +266,17 @@ func (m Model) View() tea.View {
 }
 
 func displayPath(path string) string { return filepath.Base(path) }
+
+func worktreeCount(n int) string { return fmt.Sprintf("%d worktree", n) + plural(n) }
+
+func projectCount(n int) string { return fmt.Sprintf("%d project", n) + plural(n) }
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
 
 func (m Model) selectedBranch() string {
 	return m.group
