@@ -68,3 +68,16 @@ func TestHelpNeedsSelection(t *testing.T) {
 		t.Fatal("missing selected help")
 	}
 }
+
+func TestPrimaryProjectsStartUnselected(t *testing.T) {
+	m := New("/tmp", config.Config{})
+	m.items = []worktree.Item{{Repo: "api", Path: "/tmp/api", Primary: true}}
+	m.projects = map[string]bool{"/tmp/api": false}
+	if m.projectCount() != 0 {
+		t.Fatal("primary project starts selected")
+	}
+	updated, _ := m.Update(tea.KeyPressMsg{Code: ' ', Text: " "})
+	if updated.(Model).projectCount() != 1 {
+		t.Fatal("space must select primary project")
+	}
+}

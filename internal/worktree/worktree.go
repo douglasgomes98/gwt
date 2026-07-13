@@ -12,6 +12,7 @@ import (
 
 type Item struct {
 	Repo, Branch, Path string
+	Primary            bool
 	Dirty              bool
 	Changes            int
 	Ahead, Behind      int
@@ -86,7 +87,7 @@ func ListFast(repo string) ([]Item, error) {
 	for _, line := range strings.Split(out, "\n") {
 		switch {
 		case strings.HasPrefix(line, "worktree "):
-			items = append(items, Item{Repo: filepath.Base(repo), Path: strings.TrimPrefix(line, "worktree ")})
+			items = append(items, Item{Repo: filepath.Base(repo), Path: strings.TrimPrefix(line, "worktree "), Primary: len(items) == 0})
 			current = &items[len(items)-1]
 		case strings.HasPrefix(line, "branch ") && current != nil:
 			current.Branch = strings.TrimPrefix(line, "branch refs/heads/")

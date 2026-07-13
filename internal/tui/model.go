@@ -13,18 +13,16 @@ import (
 )
 
 type Model struct {
-	cwd       string
-	config    config.Config
-	items     []worktree.Item
-	cursor    int
-	confirm   bool
-	input     bool
-	selecting bool
-	branch    string
-	repos     []string
-	selected  map[string]bool
-	message   string
-	detailed  bool
+	cwd      string
+	config   config.Config
+	items    []worktree.Item
+	cursor   int
+	confirm  bool
+	input    bool
+	branch   string
+	projects map[string]bool
+	message  string
+	detailed bool
 }
 type loaded struct {
 	items    []worktree.Item
@@ -77,6 +75,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.items = x.items
+		if m.projects == nil {
+			m.projects = map[string]bool{}
+		}
+		for _, item := range x.items {
+			if item.Primary {
+				_, ok := m.projects[item.Path]
+				if !ok {
+					m.projects[item.Path] = false
+				}
+			}
+		}
 		m.detailed = x.detailed
 		m.message = fmt.Sprintf("%d worktrees", len(m.items))
 		if !m.detailed {
@@ -91,9 +100,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if m.input {
 			return m.typeBranch(x)
-		}
-		if m.selecting {
-			return m.pickRepos(x)
 		}
 		if m.confirm {
 			if x.String() == "y" && len(m.items) > 0 {
@@ -127,7 +133,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "d":
-			if len(m.items) > 0 {
+			if len(m.items) > 0 && !m.items[m.cursor].Primary {
 				m.confirm = true
 				m.message = "remove all worktrees for this branch? y/N"
 			}
@@ -138,9 +144,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, m.reload()
 		case "n":
-			m.input = true
-			m.branch = ""
-			m.message = "branch: "
+			if m.projectCount() == 0 {
+				m.message = "select primary projects with space first"
+			} else {
+				m.input = true
+				m.branch = ""
+				m.message = "branch: "
+			}
+		case " ", "space":
+			if len(m.items) > 0 && m.items[m.cursor].Primary {
+				path := m.items[m.cursor].Path
+				m.projects[path] = !m.projects[path]
+			}
 		case "enter":
 			if len(m.items) > 0 {
 				return m, openShell(m.items[m.cursor].Path)
@@ -168,18 +183,18 @@ func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.branch == "" {
 			return m, nil
 		}
-		repos, err := worktree.Repos(m.cwd)
-		if err != nil {
-			m.message = err.Error()
-			return m, nil
+		for _, item := range m.items {
+			if !item.Primary || !m.projects[item.Path] {
+				continue
+			}
+			_ = worktree.Fetch(item.Path, m.config.BaseBranch)
+			if _, err := worktree.Add(item.Path, m.branch, "origin/"+m.config.BaseBranch, m.config); err != nil {
+				m.message = err.Error()
+				return m, nil
+			}
 		}
-		m.repos, m.selected, m.selecting = repos, map[string]bool{}, true
-		m.cursor = 0
-		for _, repo := range repos {
-			m.selected[repo] = true
-		}
-		m.message = "space: toggle  enter: create  esc: cancel"
-		return m, nil
+		m.message = "created " + m.branch
+		return m, m.reload()
 	case "backspace":
 		if len(m.branch) > 0 {
 			m.branch = m.branch[:len(m.branch)-1]
@@ -192,61 +207,9 @@ func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) pickRepos(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch k.String() {
-	case "esc":
-		m.selecting = false
-		return m, nil
-	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-	case "down", "j":
-		if m.cursor < len(m.repos)-1 {
-			m.cursor++
-		}
-	case " ":
-		if len(m.repos) > 0 {
-			repo := m.repos[m.cursor]
-			m.selected[repo] = !m.selected[repo]
-		}
-	case "enter":
-		for _, repo := range m.repos {
-			if !m.selected[repo] {
-				continue
-			}
-			_ = worktree.Fetch(repo, m.config.BaseBranch)
-			if _, err := worktree.Add(repo, m.branch, "origin/"+m.config.BaseBranch, m.config); err != nil {
-				m.message = err.Error()
-				m.selecting = false
-				return m, nil
-			}
-		}
-		m.selecting = false
-		m.cursor = 0
-		m.message = "created " + m.branch
-		return m, m.reload()
-	}
-	return m, nil
-}
 func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
-	if m.selecting {
-		b.WriteString(style("1;38;5;141", "new "+m.branch) + "\n\n")
-		for i, repo := range m.repos {
-			cursor, radio := " ", "○"
-			if i == m.cursor {
-				cursor = "›"
-			}
-			if m.selected[repo] {
-				radio = style("1;38;5;114", "◉")
-			}
-			fmt.Fprintf(&b, "%s %s %s\n", cursor, radio, style(repoColor(repo), repo))
-		}
-		b.WriteString("\n" + style("1", fmt.Sprintf("%d repos selected", m.selectedCount())) + "  " + style("2", "space: toggle  enter: create  esc: cancel"))
-		return tea.NewView(b.String())
-	}
 	last := ""
 	branch := m.selectedBranch()
 	for i, item := range m.items {
@@ -264,14 +227,15 @@ func (m Model) View() tea.View {
 		}
 		mark := " "
 		radio := style("2", "○")
-		if item.Branch == branch {
+		selected := (!item.Primary && item.Branch == branch) || (item.Primary && m.projects[item.Path])
+		if selected {
 			radio = style("1;38;5;114", "◉")
 		}
 		if i == m.cursor {
 			mark = "›"
 		}
 		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), itemStatus(item))
-		if item.Branch == branch {
+		if selected {
 			row = highlight(row)
 		}
 		b.WriteString(row + "\n")
@@ -280,8 +244,10 @@ func (m Model) View() tea.View {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
 	b.WriteString("\n" + style("2", m.message))
-	if branch != "" {
-		b.WriteString("\n" + style("1", "n") + " new  " + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
+	if m.projectCount() > 0 {
+		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%d projects selected", m.projectCount())) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
+	} else if branch != "" {
+		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent  " + style("1;38;5;208", "d") + " remove group")
 	}
 	if m.input {
 		b.WriteString(m.branch)
@@ -290,7 +256,7 @@ func (m Model) View() tea.View {
 }
 
 func (m Model) selectedBranch() string {
-	if m.cursor < 0 || m.cursor >= len(m.items) {
+	if m.cursor < 0 || m.cursor >= len(m.items) || m.items[m.cursor].Primary {
 		return ""
 	}
 	return m.items[m.cursor].Branch
@@ -306,9 +272,9 @@ func (m Model) groupSize(branch string) int {
 	return n
 }
 
-func (m Model) selectedCount() int {
+func (m Model) projectCount() int {
 	n := 0
-	for _, selected := range m.selected {
+	for _, selected := range m.projects {
 		if selected {
 			n++
 		}
