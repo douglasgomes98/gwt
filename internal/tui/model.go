@@ -231,27 +231,31 @@ func (m Model) pickRepos(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 func (m Model) View() tea.View {
 	var b strings.Builder
-	b.WriteString("gwt  n:new  d:remove  enter:shell  e:editor  a:agent  p:prune  q:quit\n\n")
+	b.WriteString(style("1;38;5;81", "gwt") + "  " + style("2", "n:new  d:remove  enter:shell  e:editor  a:agent  p:prune  q:quit") + "\n\n")
 	last := ""
 	for i, item := range m.items {
 		if item.Branch != last {
 			last = item.Branch
-			b.WriteString("[" + last + "]\n")
+			b.WriteString(style("1;38;5;141", "["+last+"]") + "\n")
 		}
 		mark := " "
 		if i == m.cursor {
-			mark = ">"
+			mark = "›"
 		}
 		dirty := ""
 		if item.Dirty {
-			dirty = " dirty"
+			dirty = " " + style("1;38;5;208", "dirty")
 		}
-		fmt.Fprintf(&b, "%s %-18s %s%s +%d/-%d\n", mark, item.Repo, item.Path, dirty, item.Ahead, item.Behind)
+		row := fmt.Sprintf("%s %s %s%s %s/%s", mark, style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo)), style("2", item.Path), dirty, style("38;5;114", fmt.Sprintf("+%d", item.Ahead)), style("38;5;203", fmt.Sprintf("-%d", item.Behind)))
+		if i == m.cursor {
+			row = style("48;5;238;1", row)
+		}
+		b.WriteString(row + "\n")
 	}
 	if len(m.items) == 0 {
-		b.WriteString("(no worktrees)\n")
+		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
-	b.WriteString("\n" + m.message)
+	b.WriteString("\n" + style("2", m.message))
 	if m.input {
 		b.WriteString(m.branch)
 	}
@@ -270,6 +274,22 @@ func (m Model) View() tea.View {
 		}
 	}
 	return tea.NewView(b.String())
+}
+
+func style(code, text string) string {
+	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+		return text
+	}
+	return "\033[" + code + "m" + text + "\033[0m"
+}
+
+func repoColor(repo string) string {
+	palette := [...]string{"38;5;75", "38;5;81", "38;5;114", "38;5;141", "38;5;215"}
+	n := 0
+	for _, r := range repo {
+		n += int(r)
+	}
+	return palette[n%len(palette)]
 }
 func repoFor(cwd, name string) string {
 	repos, _ := worktree.Repos(cwd)

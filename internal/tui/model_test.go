@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -14,5 +15,16 @@ func TestDeleteNeedsConfirmation(t *testing.T) {
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
 	if !updated.(Model).confirm {
 		t.Fatal("delete must require confirmation")
+	}
+}
+
+func TestStyleRespectsNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	if got := style("1", "text"); got != "text" {
+		t.Fatalf("got %q", got)
+	}
+	os.Unsetenv("NO_COLOR")
+	if got := repoColor("api"); got == "" {
+		t.Fatal("missing repo color")
 	}
 }
