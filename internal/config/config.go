@@ -39,7 +39,9 @@ func Load(start string) (Config, error) {
 		var raw fileConfig
 		dec := yaml.NewDecoder(bytes.NewReader(data))
 		dec.KnownFields(true)
-		if err := dec.Decode(&raw); err != nil {
+		if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+			return defaults, nil
+		} else if err != nil {
 			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
 		}
 		if err := rejectNullFields(data); err != nil {

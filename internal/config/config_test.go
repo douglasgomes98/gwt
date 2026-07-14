@@ -22,6 +22,18 @@ func TestLoadDefaultsAndOptionalCommands(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsForEmptyLocalConfig(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	want := Config{Layout: "sibling", BaseBranch: "main", Editor: "code", Agent: "claude"}
+	if err != nil || got != want {
+		t.Fatalf("got %+v, %v; want %+v", got, err, want)
+	}
+}
+
 func TestLoadRejectsInvalidConfig(t *testing.T) {
 	for _, text := range []string{
 		"layout: unknown\n", "layout: ''\n", "baseBranch: ''\n",
