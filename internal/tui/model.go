@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,27 +17,39 @@ type Model struct {
 	config   config.Config
 	items    []worktree.Item
 	cursor   int
-	confirm  bool
-	input    bool
-	branch   string
-	projects map[string]bool
-	group    string
+	selected map[string]bool
+	feature  string
+	palette  bool
+	pCursor  int
 	message  string
 	detailed bool
 }
+
+type action string
+
+const (
+	actionAdd        action = "add"
+	actionAddAll     action = "add --all"
+	actionOpen       action = "open"
+	actionOpenEditor action = "open -e"
+	actionOpenAgent  action = "open -a"
+	actionRemove     action = "rm"
+	actionRemoveAll  action = "rm --all"
+	actionPrune      action = "prune"
+	actionUpdate     action = "update"
+)
+
 type loaded struct {
 	items    []worktree.Item
 	err      error
 	detailed bool
 }
-type operationResult struct {
-	err     error
-	message string
-}
 
-func New(cwd string, c config.Config) Model { return Model{cwd: cwd, config: c, message: "loading…"} }
-func (m Model) Init() tea.Cmd               { return m.reload() }
-func (m Model) reload() tea.Cmd             { return tea.Batch(m.load(false), m.load(true)) }
+func New(cwd string, c config.Config) Model {
+	return Model{cwd: cwd, config: c, selected: map[string]bool{}, message: "loading…"}
+}
+func (m Model) Init() tea.Cmd   { return m.reload() }
+func (m Model) reload() tea.Cmd { return tea.Batch(m.load(false), m.load(true)) }
 func (m Model) load(detailed bool) tea.Cmd {
 	return func() tea.Msg {
 		repos, err := worktree.Repos(m.cwd)
@@ -80,63 +91,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.items = x.items
-		if m.projects == nil {
-			m.projects = map[string]bool{}
-		}
-		for _, item := range x.items {
-			if m.isProject(item) {
-				_, ok := m.projects[item.Path]
-				if !ok {
-					m.projects[item.Path] = false
-				}
-			}
-		}
 		m.detailed = x.detailed
 		m.message = fmt.Sprintf("%d worktrees", len(m.items))
 		if !m.detailed {
 			m.message += " (checking status…)"
 		}
 		return m, nil
-	case operationResult:
-		if x.err != nil {
-			m.message = x.err.Error()
-		} else if x.message != "" {
-			m.message = x.message
-		}
-		return m, nil
 	case tea.KeyPressMsg:
-		if m.input {
-			return m.typeBranch(x)
-		}
-		if m.confirm {
-			if (x.String() == "y" || x.String() == "enter") && len(m.items) > 0 {
-				branch := m.group
-				for _, item := range m.items {
-					if item.Branch == branch {
-						if err := worktree.Remove(repoFor(m.cwd, item.Repo), branch); err != nil {
-							m.message = err.Error()
-							break
-						}
-					}
+		if m.palette {
+			switch x.String() {
+			case "esc":
+				m.palette = false
+			case "down", "j":
+				if m.pCursor < len(m.availableActions())-1 {
+					m.pCursor++
 				}
-				if m.message == "remove all worktrees for this branch? y/Enter/N" {
-					m.message = "removed " + branch
+			case "up", "k":
+				if m.pCursor > 0 {
+					m.pCursor--
 				}
-				m.confirm = false
-				return m, m.reload()
+			case "enter":
+				m.palette = false
 			}
-			m.confirm = false
 			return m, nil
 		}
 		switch x.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "esc":
-			m.group = ""
-			for path := range m.projects {
-				m.projects[path] = false
-			}
-			m.message = "selection cleared"
 		case "down", "j":
 			if m.cursor < len(m.items)-1 {
 				m.cursor++
@@ -145,88 +126,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "d":
-			if m.group != "" && m.canRemoveGroup() {
-				m.confirm = true
-				m.message = "remove all worktrees for this branch? y/Enter/N"
-			}
-		case "p":
-			repos, _ := worktree.Repos(m.cwd)
-			for _, repo := range repos {
-				_ = worktree.Prune(repo)
-			}
-			return m, m.reload()
-		case "u":
-			if m.group != "" {
-				return m, m.updateGroup()
-			}
-		case "n":
-			if m.projectCount() == 0 {
-				m.message = "select primary projects with space first"
-			} else {
-				m.input = true
-				m.branch = ""
-				m.message = "branch: "
-			}
 		case " ", "space":
 			if len(m.items) > 0 {
 				item := m.items[m.cursor]
 				if m.isProject(item) {
-					m.projects[item.Path] = !m.projects[item.Path]
-				} else if m.group != "" && m.group != item.Branch {
-					m.message = "press esc to change worktree group"
-				} else if m.group == item.Branch {
-					m.group = ""
-				} else {
-					m.group = item.Branch
+					m.clearFeature()
+					m.selected[item.Path] = !m.selected[item.Path]
+				} else if !item.Detached {
+					if m.feature != item.Branch {
+						m.feature = item.Branch
+						m.clearRoots()
+						for _, candidate := range m.items {
+							if candidate.Branch == item.Branch && !candidate.Detached {
+								m.selected[candidate.Path] = true
+							}
+						}
+					} else {
+						m.selected[item.Path] = !m.selected[item.Path]
+					}
 				}
 			}
 		case "enter":
-			if item, ok := m.activeItem(); ok {
-				return m, openShell(item.Path)
+			if len(m.availableActions()) > 0 {
+				m.palette = true
+				m.pCursor = 0
 			}
-		case "e":
-			if item, ok := m.activeItem(); ok {
-				return m, run(m.config.Editor, item.Path)
-			}
-		case "a":
-			if item, ok := m.activeItem(); ok {
-				return m, run(m.config.Agent, item.Path)
-			}
-		}
-	}
-	return m, nil
-}
-func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	s := k.String()
-	switch s {
-	case "esc":
-		m.input = false
-		return m, nil
-	case "enter":
-		m.input = false
-		if m.branch == "" {
-			return m, nil
-		}
-		for _, item := range m.items {
-			if !m.isProject(item) || !m.projects[item.Path] {
-				continue
-			}
-			_ = worktree.Fetch(item.Path, m.config.BaseBranch)
-			if _, err := worktree.Add(item.Path, m.branch, "origin/"+m.config.BaseBranch, m.config); err != nil {
-				m.message = err.Error()
-				return m, nil
-			}
-		}
-		m.message = "created " + m.branch
-		return m, m.reload()
-	case "backspace":
-		if len(m.branch) > 0 {
-			m.branch = m.branch[:len(m.branch)-1]
-		}
-	default:
-		if len(s) == 1 {
-			m.branch += s
 		}
 	}
 	return m, nil
@@ -236,19 +160,18 @@ func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
 	last := ""
-	branch := m.selectedBranch()
 	for i, item := range m.items {
 		if item.Branch != last {
 			last = item.Branch
 			header := last + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
-			if last == branch {
-				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(m.groupSize(last))))
+			if last == m.feature {
+				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(len(m.selectedFeatureItems()))))
 			}
 			b.WriteString(header + "\n")
 		}
 		mark := " "
 		radio := style("2", "○")
-		selected := (!m.isProject(item) && item.Branch == branch) || (m.isProject(item) && m.projects[item.Path])
+		selected := m.selected[item.Path]
 		if selected {
 			radio = style("1;38;5;114", "◉")
 		}
@@ -267,21 +190,18 @@ func (m Model) View() tea.View {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
 	b.WriteString("\n" + style("2", m.message))
-	if m.input {
-		b.WriteString(m.branch)
-	}
-	if m.projectCount() > 0 {
-		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%s selected for new branch", projectCount(m.projectCount()))) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
-	}
-	if branch != "" {
-		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "esc") + " cancel  " + style("1", "e") + " editor  " + style("1", "a") + " agent")
-		if m.canRemoveGroup() {
-			b.WriteString("  " + style("1;38;5;208", "d") + " remove group")
+	if m.palette {
+		b.WriteString("\n\n" + style("1", "commands") + "\n")
+		for i, action := range m.availableActions() {
+			mark := " "
+			if i == m.pCursor {
+				mark = "›"
+			}
+			b.WriteString(fmt.Sprintf("%s %s\n", mark, action))
 		}
-		b.WriteString("  " + style("1", "p") + " prune  " + style("1", "u") + " update " + m.baseBranch() + "  " + style("1", "q") + " quit")
-	}
-	if m.projectCount() > 0 && branch == "" {
-		b.WriteString("  " + style("1", "esc") + " cancel  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
+		b.WriteString(style("2", "enter select  esc close"))
+	} else if len(m.availableActions()) > 0 {
+		b.WriteString("\n" + style("1", "Enter") + " commands  " + style("1", "q") + " quit")
 	}
 	return tea.NewView(b.String())
 }
@@ -290,17 +210,11 @@ func displayPath(path string) string { return filepath.Base(path) }
 
 func worktreeCount(n int) string { return fmt.Sprintf("%d worktree", n) + plural(n) }
 
-func projectCount(n int) string { return fmt.Sprintf("%d project", n) + plural(n) }
-
 func plural(n int) string {
 	if n == 1 {
 		return ""
 	}
 	return "s"
-}
-
-func (m Model) selectedBranch() string {
-	return m.group
 }
 
 func (m Model) isProject(item worktree.Item) bool {
@@ -314,42 +228,41 @@ func (m Model) baseBranch() string {
 	return m.config.BaseBranch
 }
 
-func (m Model) canRemoveGroup() bool {
+func (m *Model) clearRoots() {
 	for _, item := range m.items {
-		if item.Branch == m.group && item.Primary {
-			return false
+		if m.isProject(item) {
+			m.selected[item.Path] = false
 		}
-	}
-	return true
-}
-
-func (m Model) updateGroup() tea.Cmd {
-	branch, base, items := m.group, m.baseBranch(), m.items
-	return func() tea.Msg {
-		for _, item := range items {
-			if item.Branch == branch {
-				if err := worktree.Update(item.Path, base); err != nil {
-					return operationResult{err: err}
-				}
-			}
-		}
-		return operationResult{message: "updated from " + base}
 	}
 }
 
-func (m Model) activeItem() (worktree.Item, bool) {
-	if m.group == "" {
-		return worktree.Item{}, false
-	}
-	if m.cursor >= 0 && m.cursor < len(m.items) && m.items[m.cursor].Branch == m.group {
-		return m.items[m.cursor], true
-	}
+func (m *Model) clearFeature() {
 	for _, item := range m.items {
-		if item.Branch == m.group {
-			return item, true
+		if item.Branch == m.feature {
+			m.selected[item.Path] = false
 		}
 	}
-	return worktree.Item{}, false
+	m.feature = ""
+}
+
+func (m Model) selectedRoots() []worktree.Item {
+	var roots []worktree.Item
+	for _, item := range m.items {
+		if m.isProject(item) && m.selected[item.Path] {
+			roots = append(roots, item)
+		}
+	}
+	return roots
+}
+
+func (m Model) selectedFeatureItems() []worktree.Item {
+	var items []worktree.Item
+	for _, item := range m.items {
+		if item.Branch == m.feature && !item.Detached && m.selected[item.Path] {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func (m Model) groupSize(branch string) int {
@@ -362,14 +275,28 @@ func (m Model) groupSize(branch string) int {
 	return n
 }
 
-func (m Model) projectCount() int {
-	n := 0
-	for _, selected := range m.projects {
-		if selected {
-			n++
+func (m Model) availableActions() []action {
+	if roots := m.selectedRoots(); len(roots) > 0 {
+		if len(roots) == 1 {
+			return []action{actionAdd, actionPrune, actionUpdate}
 		}
+		return []action{actionAddAll, actionPrune, actionUpdate}
 	}
-	return n
+	items := m.selectedFeatureItems()
+	if len(items) == 0 {
+		return nil
+	}
+	if len(items) > 1 {
+		return []action{actionRemoveAll, actionPrune}
+	}
+	actions := []action{actionOpen}
+	if m.config.Editor != "" {
+		actions = append(actions, actionOpenEditor)
+	}
+	if m.config.Agent != "" {
+		actions = append(actions, actionOpenAgent)
+	}
+	return append(actions, actionRemove, actionPrune)
 }
 
 func itemStatus(item worktree.Item) string {
@@ -411,35 +338,4 @@ func repoColor(repo string) string {
 		n += int(r)
 	}
 	return palette[n%len(palette)]
-}
-func repoFor(cwd, name string) string {
-	repos, _ := worktree.Repos(cwd)
-	for _, r := range repos {
-		if strings.TrimSuffix(r, "/") != "" && strings.HasSuffix(r, "/"+name) {
-			return r
-		}
-	}
-	return cwd
-}
-func openShell(dir string) tea.Cmd {
-	return tea.ExecProcess(shellCommand(dir), func(err error) tea.Msg { return operationResult{err: err} })
-}
-
-func shellCommand(dir string) *exec.Cmd {
-	sh := os.Getenv("SHELL")
-	if sh == "" {
-		sh = "/bin/sh"
-	}
-	cmd := exec.Command(sh)
-	cmd.Dir = dir
-	return cmd
-}
-func run(command, dir string) tea.Cmd {
-	if command == "" {
-		return func() tea.Msg { return operationResult{err: fmt.Errorf("command is not configured")} }
-	}
-	parts := strings.Fields(command)
-	cmd := exec.Command(parts[0], parts[1:]...)
-	cmd.Dir = dir
-	return tea.ExecProcess(cmd, func(err error) tea.Msg { return operationResult{err: err} })
 }
