@@ -178,3 +178,9 @@ func TestDisplayPathUsesWorktreeDirectory(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestShellCommandUsesWorktreeDirectory(t *testing.T) {
+	if got := shellCommand("/tmp/worktree").Dir; got != "/tmp/worktree" {
+		t.Fatalf("got %q", got)
+	}
+}

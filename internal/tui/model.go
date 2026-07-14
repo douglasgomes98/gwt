@@ -422,11 +422,17 @@ func repoFor(cwd, name string) string {
 	return cwd
 }
 func openShell(dir string) tea.Cmd {
+	return tea.ExecProcess(shellCommand(dir), func(err error) tea.Msg { return operationResult{err: err} })
+}
+
+func shellCommand(dir string) *exec.Cmd {
 	sh := os.Getenv("SHELL")
 	if sh == "" {
 		sh = "/bin/sh"
 	}
-	return tea.ExecProcess(exec.Command(sh), func(err error) tea.Msg { return operationResult{err: err} })
+	cmd := exec.Command(sh)
+	cmd.Dir = dir
+	return cmd
 }
 func run(command, dir string) tea.Cmd {
 	if command == "" {
