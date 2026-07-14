@@ -70,7 +70,7 @@ abre um subshell no worktree; ao sair, você volta ao diretório anterior.
 | `gwt list` | Lista os worktrees do repositório atual. |
 | `gwt prune` | Executa `git worktree prune` nos repositórios descobertos. |
 | `gwt help` | Mostra a ajuda da CLI. |
-| `gwt --version` | Mostra a versão do binário. |
+| `gwt version` | Mostra a versão do binário. |
 
 As flags de abertura são mutuamente exclusivas:
 
@@ -106,8 +106,8 @@ editor: code
 agent: claude
 ```
 
-Todos os campos são opcionais. Os valores padrão são `sibling`, `main` e
-`code`; `agent` não tem padrão.
+Todos os campos são opcionais. Os valores padrão são `sibling`, `main`, `code`
+e `claude`.
 
 ### Layouts
 

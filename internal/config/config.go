@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,9 +42,40 @@ func Load(start string) (Config, error) {
 		if err := dec.Decode(&raw); err != nil {
 			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
 		}
-		return apply(raw, defaults)
+		if err := rejectNullFields(data); err != nil {
+			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+		}
+		var extra fileConfig
+		if err := dec.Decode(&extra); err != io.EOF {
+			if err != nil {
+				return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+			}
+			return Config{}, fmt.Errorf("parse config %s: multiple YAML documents", path)
+		}
+		cfg, err := apply(raw, defaults)
+		if err != nil {
+			return Config{}, fmt.Errorf("validate config %s: %w", path, err)
+		}
+		return cfg, nil
 	}
 	return defaults, nil
+}
+
+func rejectNullFields(data []byte) error {
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return err
+	}
+	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(document.Content[0].Content); i += 2 {
+		key, value := document.Content[0].Content[i], document.Content[0].Content[i+1]
+		if (key.Value == "layout" || key.Value == "baseBranch" || key.Value == "editor" || key.Value == "agent") && value.Tag == "!!null" {
+			return fmt.Errorf("%s cannot be null", key.Value)
+		}
+	}
+	return nil
 }
 
 func configPaths(start string) []string {

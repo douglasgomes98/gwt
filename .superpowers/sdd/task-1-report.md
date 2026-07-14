@@ -36,3 +36,41 @@ All commands completed successfully.
 ## Concerns
 
 None. The configuration validation invokes `git check-ref-format --branch` only for `baseBranch`; editor and agent commands are not checked against `PATH`.
+
+---
+
+## Review fix
+
+### Changed files
+
+- `internal/config/config.go`: adds path context for validation errors, rejects explicit null config values, and rejects a second YAML document.
+- `internal/config/config_test.go`: covers those three cases, including unknown/type-invalid fields in a second document.
+- `README.md`: documents `gwt version` and the `claude` agent default.
+
+### Red/green evidence
+
+Red command:
+
+```sh
+go test ./internal/config -run 'TestLoadValidationErrorIncludesConfigPath|TestLoadRejectsSecondDocument|TestLoadRejectsNullFields' -count=1
+```
+
+It failed as intended: validation errors lacked the config path, additional documents were accepted, and null was treated as absent.
+
+Green commands:
+
+```sh
+go test ./internal/config ./internal/cli -count=1
+go test ./... -count=1
+git diff --check
+```
+
+All commands completed successfully.
+
+### Commit
+
+Pending focused commit creation.
+
+### Concerns
+
+None.
