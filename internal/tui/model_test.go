@@ -312,6 +312,21 @@ func TestKeyboardCommands(t *testing.T) {
 	}
 }
 
+func TestBranchInputRendersBesidePrompt(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := New("/tmp", config.Config{})
+	m.input, m.branch, m.message = true, "branch-test-tui", "branch: "
+	m.items = []worktree.Item{{Branch: "main", Path: "/tmp/api", Primary: true}}
+	m.projects = map[string]bool{"/tmp/api": true}
+	view := m.View().Content
+	if !strings.Contains(view, "branch: branch-test-tui") {
+		t.Fatalf("branch input misplaced: %q", view)
+	}
+	if strings.Contains(view, "quitbranch-test-tui") {
+		t.Fatalf("branch input appended to shortcuts: %q", view)
+	}
+}
+
 func TestLoadedDetailedResultWins(t *testing.T) {
 	m := New("/tmp", config.Config{})
 	m.detailed = true

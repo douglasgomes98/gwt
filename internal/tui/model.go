@@ -267,6 +267,9 @@ func (m Model) View() tea.View {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
 	b.WriteString("\n" + style("2", m.message))
+	if m.input {
+		b.WriteString(m.branch)
+	}
 	if m.projectCount() > 0 {
 		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%s selected for new branch", projectCount(m.projectCount()))) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
 	}
@@ -279,9 +282,6 @@ func (m Model) View() tea.View {
 	}
 	if m.projectCount() > 0 && branch == "" {
 		b.WriteString("  " + style("1", "esc") + " cancel  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
-	}
-	if m.input {
-		b.WriteString(m.branch)
 	}
 	return tea.NewView(b.String())
 }
