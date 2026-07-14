@@ -5,24 +5,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/douglasgomes/gwt/internal/config"
 )
 
-func TestFlagsFirstKeepsAliasStyle(t *testing.T) {
-	got := flagsFirst([]string{"AG-1", "main", "-e", "--all"})
-	want := []string{"-e", "--all", "AG-1", "main"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %v, want %v", got, want)
-	}
-}
-
 func testRepo(t *testing.T) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "repo")
+	initRepo(t, dir)
+	return dir
+}
+
+func initRepo(t *testing.T, dir string) {
+	t.Helper()
 	if err := os.Mkdir(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +40,6 @@ func testRepo(t *testing.T) string {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
 	}
-	return dir
 }
 
 func TestCommandsUseRealWorktree(t *testing.T) {
@@ -61,12 +57,8 @@ func TestCommandsUseRealWorktree(t *testing.T) {
 	if e := a.Run([]string{"list"}); e != nil {
 		t.Fatal(e)
 	}
-	if !bytes.Contains(out.Bytes(), []byte(path+"\tAG-1\n")) {
+	if !bytes.Contains(out.Bytes(), []byte(path+"\tAG-1\t(clean)\n")) {
 		t.Fatalf("list output: %q", out.String())
-	}
-	out.Reset()
-	if e := a.Run([]string{"open", "AG-1", "-p"}); e != nil || out.String() != path+"\n" {
-		t.Fatalf("open: %v, %q", e, out.String())
 	}
 	if e := a.Run([]string{"prune"}); e != nil {
 		t.Fatal(e)
@@ -76,9 +68,75 @@ func TestCommandsUseRealWorktree(t *testing.T) {
 	}
 }
 
+func TestAddFlagsCanAppearEitherSideButCannotMix(t *testing.T) {
+	for _, args := range [][]string{{"add", "AG-1", "-e"}, {"add", "-e", "AG-2"}} {
+		a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main", Editor: "true"})
+		if err := a.Run(args); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"add", "AG-3", "-e", "-a"}, {"add", "AG-3", "--all", "-e"}} {
+		a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main"})
+		if err := a.Run(args); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+}
+
+func TestRemoveAllPrevalidatesPrimary(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run([]string{"rm", "main", "--all"}); err == nil {
+		t.Fatal("rm --all accepted the primary checkout")
+	}
+	if err := a.Run([]string{"open", "AG-1", "-p"}); err == nil {
+		t.Fatal("open accepted removed -p flag")
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), filepath.Base(dir)+".AG-1")); err != nil {
+		t.Fatalf("worktree removed before validation: %v", err)
+	}
+}
+
+func TestPruneRejectsArguments(t *testing.T) {
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{})
+	if err := a.Run([]string{"prune", "extra"}); err == nil {
+		t.Fatal("prune accepted arguments")
+	}
+}
+
+func TestAddAllDoesNotRequireRemote(t *testing.T) {
+	dir := testRepo(t)
+	sibling := filepath.Join(filepath.Dir(dir), "sibling")
+	initRepo(t, sibling)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "--all", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, repo := range []string{dir, sibling} {
+		if _, err := os.Stat(filepath.Join(filepath.Dir(repo), filepath.Base(repo)+".AG-1")); err != nil {
+			t.Fatalf("worktree for %s was not created: %v", repo, err)
+		}
+	}
+}
+
+func TestRemoveAllIgnoresSiblingWithoutBranch(t *testing.T) {
+	dir := testRepo(t)
+	initRepo(t, filepath.Join(filepath.Dir(dir), "sibling"))
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run([]string{"rm", "--all", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCommandErrorsAndHelpers(t *testing.T) {
 	a := App{Out: &bytes.Buffer{}, Err: &bytes.Buffer{}, Dir: t.TempDir()}
-	for _, args := range [][]string{nil, {"unknown"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}} {
+	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}} {
 		if err := a.Run(args); err == nil {
 			t.Fatalf("expected error for %v", args)
 		}

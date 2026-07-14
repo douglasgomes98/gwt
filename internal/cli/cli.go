@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -41,7 +40,9 @@ func (a App) Run(args []string) error {
 	case "list":
 		return a.list(args[1:])
 	case "prune":
-		return a.prune()
+		return a.prune(args[1:])
+	case "update":
+		return a.update(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -63,10 +64,11 @@ func (a App) help(args []string) error {
 
 Commands:
   add <branch> [base] [-e|-a] [--all]  Create a worktree.
-  open <branch> [-e|-a|-p]             Open a worktree.
-  rm <branch>                          Remove a worktree.
+  open <branch> [-e|-a]                Open a worktree.
+  rm <branch> [--all]                  Remove a worktree.
   list                                 List worktrees.
   prune                                Prune stale worktrees.
+  update                               Update the current root.
   version                              Show the version.
   help                                 Show this help.
 
@@ -76,26 +78,22 @@ Run gwt without a command to open the TUI.
 }
 
 func (a App) add(args []string) error {
-	args = flagsFirst(args)
-	fs := flag.NewFlagSet("add", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
-	all := fs.Bool("all", false, "add in all sibling repos")
-	editor := fs.Bool("e", false, "open editor")
-	agent := fs.Bool("a", false, "open agent")
-	if err := fs.Parse(args); err != nil {
+	flags, values, err := parse(args, "--all", "-e", "-a")
+	if err != nil {
 		return err
 	}
-	rest := fs.Args()
-	if len(rest) < 1 || len(rest) > 2 {
+	if exclusive(flags, "--all", "-e", "-a") {
+		return fmt.Errorf("usage: gwt add <branch> [base] [-e|-a] [--all]")
+	}
+	if len(values) < 1 || len(values) > 2 {
 		return fmt.Errorf("usage: gwt add <branch> [base] [-e|-a] [--all]")
 	}
 	base := a.Config.BaseBranch
-	if len(rest) == 2 {
-		base = rest[1]
+	if len(values) == 2 {
+		base = values[1]
 	}
 	repos := []string{}
-	if *all {
-		var err error
+	if flags["--all"] {
 		repos, err = worktree.Repos(a.Dir)
 		if err != nil {
 			return err
@@ -108,35 +106,30 @@ func (a App) add(args []string) error {
 		repos = []string{repo}
 	}
 	for _, repo := range repos {
-		if *all {
-			_ = worktree.Fetch(repo, base)
-		}
-		path, err := worktree.Add(repo, rest[0], base, a.Config)
+		path, err := worktree.Add(repo, values[0], base, a.Config)
 		if err != nil {
+			if flags["--all"] {
+				return fmt.Errorf("add --all: result may be partial: %w", err)
+			}
 			return err
 		}
 		fmt.Fprintln(a.Out, path)
-		if *editor {
+		if flags["-e"] {
 			return runAt(a.Config.Editor, path)
 		}
-		if *agent {
+		if flags["-a"] {
 			return runAt(a.Config.Agent, path)
 		}
 	}
 	return nil
 }
 func (a App) open(args []string) error {
-	args = flagsFirst(args)
-	fs := flag.NewFlagSet("open", flag.ContinueOnError)
-	fs.SetOutput(a.Err)
-	editor := fs.Bool("e", false, "editor")
-	agent := fs.Bool("a", false, "agent")
-	pathOnly := fs.Bool("p", false, "print path")
-	if err := fs.Parse(args); err != nil {
+	flags, values, err := parse(args, "-e", "-a")
+	if err != nil {
 		return err
 	}
-	if len(fs.Args()) != 1 {
-		return fmt.Errorf("usage: gwt open <branch> [-e|-a|-p]")
+	if exclusive(flags, "-e", "-a") || len(values) != 1 {
+		return fmt.Errorf("usage: gwt open <branch> [-e|-a]")
 	}
 	repo, err := worktree.CurrentRepo(a.Dir)
 	if err != nil {
@@ -147,31 +140,72 @@ func (a App) open(args []string) error {
 		return err
 	}
 	for _, item := range items {
-		if item.Branch == fs.Args()[0] {
-			if *pathOnly {
-				_, err = fmt.Fprintln(a.Out, item.Path)
-				return err
+		if item.Branch == values[0] {
+			if item.Detached {
+				return fmt.Errorf("refusing to open detached worktree")
 			}
-			if *editor {
+			if flags["-e"] {
 				return runAt(a.Config.Editor, item.Path)
 			}
-			if *agent {
+			if flags["-a"] {
 				return runAt(a.Config.Agent, item.Path)
 			}
 			return shell(item.Path)
 		}
 	}
-	return fmt.Errorf("worktree for branch %q not found", fs.Args()[0])
+	return fmt.Errorf("worktree for branch %q not found", values[0])
 }
 func (a App) remove(args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: gwt rm <branch>")
-	}
-	repo, err := worktree.CurrentRepo(a.Dir)
+	flags, values, err := parse(args, "--all")
 	if err != nil {
 		return err
 	}
-	return worktree.Remove(repo, args[0])
+	if len(values) != 1 {
+		return fmt.Errorf("usage: gwt rm <branch> [--all]")
+	}
+	if !flags["--all"] {
+		repo, err := worktree.CurrentRepo(a.Dir)
+		if err != nil {
+			return err
+		}
+		return worktree.Remove(repo, values[0])
+	}
+	repos, err := worktree.Repos(a.Dir)
+	if err != nil {
+		return err
+	}
+	type target struct {
+		repo string
+		item worktree.Item
+	}
+	var targets []target
+	for _, repo := range repos {
+		item, err := worktree.Find(repo, values[0])
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				continue
+			}
+			return err
+		}
+		targets = append(targets, target{repo, item})
+	}
+	if len(targets) == 0 {
+		return fmt.Errorf("worktree for branch %q not found", values[0])
+	}
+	for _, target := range targets {
+		if target.item.Primary {
+			return fmt.Errorf("refusing to remove primary checkout")
+		}
+		if target.item.Detached {
+			return fmt.Errorf("refusing to remove detached worktree")
+		}
+	}
+	for _, target := range targets {
+		if err := worktree.Remove(target.repo, values[0]); err != nil {
+			return fmt.Errorf("rm --all: result may be partial: %w", err)
+		}
+	}
+	return nil
 }
 func (a App) list(args []string) error {
 	if len(args) != 0 {
@@ -186,11 +220,14 @@ func (a App) list(args []string) error {
 		return err
 	}
 	for _, x := range items {
-		fmt.Fprintf(a.Out, "%s\t%s\n", x.Path, x.Branch)
+		fmt.Fprintf(a.Out, "%s\t%s\t%s\n", x.Path, displayBranch(x), worktree.Status(x))
 	}
 	return nil
 }
-func (a App) prune() error {
+func (a App) prune(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt prune")
+	}
 	repos, err := worktree.Repos(a.Dir)
 	if err != nil {
 		return err
@@ -201,6 +238,52 @@ func (a App) prune() error {
 		}
 	}
 	return nil
+}
+func (a App) update(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt update")
+	}
+	repo, err := worktree.CurrentRepo(a.Dir)
+	if err != nil {
+		return err
+	}
+	return worktree.Update(repo, a.Config.BaseBranch)
+}
+
+func parse(args []string, allowed ...string) (map[string]bool, []string, error) {
+	known, flags := map[string]bool{}, map[string]bool{}
+	for _, name := range allowed {
+		known[name] = true
+	}
+	var values []string
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			if !known[arg] {
+				return nil, nil, fmt.Errorf("unknown flag %q", arg)
+			}
+			flags[arg] = true
+		} else {
+			values = append(values, arg)
+		}
+	}
+	return flags, values, nil
+}
+
+func exclusive(flags map[string]bool, names ...string) bool {
+	count := 0
+	for _, name := range names {
+		if flags[name] {
+			count++
+		}
+	}
+	return count > 1
+}
+
+func displayBranch(item worktree.Item) string {
+	if item.Detached {
+		return "(detached)"
+	}
+	return item.Branch
 }
 func runAt(command, dir string) error {
 	if command == "" {
@@ -218,17 +301,4 @@ func shell(dir string) error {
 		sh = "/bin/sh"
 	}
 	return runAt(sh, dir)
-}
-
-func flagsFirst(args []string) []string {
-	var flags, values []string
-	for _, arg := range args {
-		switch arg {
-		case "--all", "-e", "-a", "-p":
-			flags = append(flags, arg)
-		default:
-			values = append(values, arg)
-		}
-	}
-	return append(flags, values...)
 }
