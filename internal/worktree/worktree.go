@@ -12,10 +12,27 @@ import (
 
 type Item struct {
 	Repo, Branch, Path string
-	Primary            bool
+	Primary, Detached  bool
 	Dirty              bool
 	Changes            int
 	Ahead, Behind      int
+}
+
+func Status(item Item) string {
+	var parts []string
+	if item.Changes > 0 {
+		parts = append(parts, fmt.Sprintf("%d files changed", item.Changes))
+	}
+	if item.Ahead > 0 {
+		parts = append(parts, fmt.Sprintf("ahead %d", item.Ahead))
+	}
+	if item.Behind > 0 {
+		parts = append(parts, fmt.Sprintf("behind %d", item.Behind))
+	}
+	if len(parts) == 0 {
+		return "(clean)"
+	}
+	return "(" + strings.Join(parts, " · ") + ")"
 }
 
 func Root(cwd string) string {
@@ -91,9 +108,24 @@ func ListFast(repo string) ([]Item, error) {
 			current = &items[len(items)-1]
 		case strings.HasPrefix(line, "branch ") && current != nil:
 			current.Branch = strings.TrimPrefix(line, "branch refs/heads/")
+		case line == "detached" && current != nil:
+			current.Detached = true
 		}
 	}
 	return items, nil
+}
+
+func Find(repo, branch string) (Item, error) {
+	items, err := List(repo)
+	if err != nil {
+		return Item{}, err
+	}
+	for _, item := range items {
+		if item.Branch == branch {
+			return item, nil
+		}
+	}
+	return Item{}, fmt.Errorf("worktree for branch %q not found", branch)
 }
 
 func primary(dir string) bool {
@@ -130,34 +162,41 @@ func Add(repo, branch, base string, c config.Config) (string, error) {
 }
 
 func Remove(repo, branch string) error {
-	items, err := List(repo)
+	item, err := Find(repo, branch)
 	if err != nil {
 		return err
 	}
-	for _, item := range items {
-		if item.Branch == branch {
-			same, _ := filepath.EvalSymlinks(item.Path)
-			if same == "" {
-				same = item.Path
-			}
-			main, _ := CurrentRepo(repo)
-			if same == main {
-				return fmt.Errorf("refusing to remove primary checkout")
-			}
-			_, err := git.Run(repo, "worktree", "remove", "--force", "--force", item.Path)
-			return err
-		}
+	if item.Primary {
+		return fmt.Errorf("refusing to remove primary checkout")
 	}
-	return fmt.Errorf("worktree for branch %q not found", branch)
+	if item.Detached {
+		return fmt.Errorf("refusing to remove detached worktree")
+	}
+	_, err = git.Run(repo, "worktree", "remove", "--force", "--force", item.Path)
+	return err
 }
 
 func Fetch(repo, base string) error { _, err := git.Run(repo, "fetch", "origin", base); return err }
 func Prune(repo string) error       { _, err := git.Run(repo, "worktree", "prune"); return err }
 
 func Update(path, base string) error {
+	status, err := git.Run(path, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(status) != "" {
+		return fmt.Errorf("root has uncommitted changes")
+	}
+	branch, err := git.Run(path, "branch", "--show-current")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(branch) != base {
+		return fmt.Errorf("root must be on %s", base)
+	}
 	if err := Fetch(path, base); err != nil {
 		return err
 	}
-	_, err := git.Run(path, "merge", "--no-edit", "origin/"+base)
+	_, err = git.Run(path, "merge", "--ff-only", "origin/"+base)
 	return err
 }

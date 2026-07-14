@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/douglasgomes/gwt/internal/config"
@@ -36,6 +37,28 @@ func repo(t *testing.T) string {
 	return dir
 }
 
+func remoteRepos(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	remote := filepath.Join(dir, "remote.git")
+	git(t, dir, "init", "--bare", "--initial-branch=main", remote)
+	root := filepath.Join(dir, "root")
+	git(t, dir, "clone", remote, root)
+	git(t, root, "config", "user.email", "test@example.com")
+	git(t, root, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(root, "README"), []byte("ok"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, root, "add", ".")
+	git(t, root, "commit", "-m", "init")
+	git(t, root, "push", "-u", "origin", "main")
+	peer := filepath.Join(dir, "peer")
+	git(t, dir, "clone", remote, peer)
+	git(t, peer, "config", "user.email", "test@example.com")
+	git(t, peer, "config", "user.name", "Test")
+	return root, peer
+}
+
 func TestAddAndRemoveWithRealGit(t *testing.T) {
 	r := repo(t)
 	c := config.Config{Layout: "sibling"}
@@ -58,6 +81,21 @@ func TestRemoveNeverDeletesPrimaryCheckout(t *testing.T) {
 	r := repo(t)
 	if err := worktree.Remove(r, "main"); err == nil {
 		t.Fatal("expected primary checkout protection")
+	}
+}
+
+func TestRemoveRejectsDetachedWorktree(t *testing.T) {
+	r := repo(t)
+	path, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	git(t, path, "checkout", "--detach")
+	if err := worktree.Remove(r, ""); err == nil || !strings.Contains(err.Error(), "detached") {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -106,6 +144,98 @@ func TestListAndRepositoryHelpers(t *testing.T) {
 	if err != nil || len(items) != 1 || !items[0].Dirty || items[0].Changes != 1 {
 		t.Fatalf("list: %#v, %v", items, err)
 	}
+}
+
+func TestStatusAndDetachedWorktree(t *testing.T) {
+	if got := worktree.Status(worktree.Item{Changes: 2, Ahead: 1, Behind: 3}); got != "(2 files changed · ahead 1 · behind 3)" {
+		t.Fatal(got)
+	}
+	if got := worktree.Status(worktree.Item{}); got != "(clean)" {
+		t.Fatal(got)
+	}
+	r := repo(t)
+	path, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	git(t, path, "checkout", "--detach")
+	items, err := worktree.ListFast(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range items {
+		if item.Path == path {
+			if !item.Detached || item.Branch != "" {
+				t.Fatalf("detached item: %#v", item)
+			}
+			return
+		}
+	}
+	t.Fatalf("detached worktree not found: %#v", items)
+}
+
+func TestFindReturnsPrimary(t *testing.T) {
+	item, err := worktree.Find(repo(t), "main")
+	if err != nil || !item.Primary {
+		t.Fatalf("%+v %v", item, err)
+	}
+}
+
+func TestUpdateRejectsDirtyBeforeFetch(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.Update(r, "main"); err == nil || strings.Contains(err.Error(), "fetch") {
+		t.Fatal(err)
+	}
+}
+
+func TestUpdateRejectsNonBaseBranchBeforeFetch(t *testing.T) {
+	r := repo(t)
+	git(t, r, "checkout", "-b", "feature")
+	if err := worktree.Update(r, "main"); err == nil || strings.Contains(err.Error(), "fetch") {
+		t.Fatal(err)
+	}
+}
+
+func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
+	t.Run("fast forward", func(t *testing.T) {
+		root, peer := remoteRepos(t)
+		if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, peer, "add", ".")
+		git(t, peer, "commit", "-m", "peer")
+		git(t, peer, "push")
+		if err := worktree.Update(root, "main"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "peer")); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("diverged history", func(t *testing.T) {
+		root, peer := remoteRepos(t)
+		if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, peer, "add", ".")
+		git(t, peer, "commit", "-m", "peer")
+		git(t, peer, "push")
+		if err := os.WriteFile(filepath.Join(root, "root"), []byte("root"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, root, "add", ".")
+		git(t, root, "commit", "-m", "root")
+		if err := worktree.Update(root, "main"); err == nil || !strings.Contains(err.Error(), "merge --ff-only") {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestWorktreeErrorsAndMaintenance(t *testing.T) {
