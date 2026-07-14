@@ -84,3 +84,49 @@ func TestCurrentRepoFromLinkedWorktree(t *testing.T) {
 		t.Fatalf("got %q, %v; want %q", got, err, r)
 	}
 }
+
+func TestListAndRepositoryHelpers(t *testing.T) {
+	r := repo(t)
+	wantRoot, _ := filepath.EvalSymlinks(filepath.Dir(r))
+	if got := worktree.Root(r); got != wantRoot {
+		t.Fatalf("root: %q", got)
+	}
+	repos, err := worktree.Repos(r)
+	resolvedRepo, _ := filepath.EvalSymlinks(r)
+	if err != nil || len(repos) != 1 || repos[0] != resolvedRepo {
+		t.Fatalf("repos: %v, %v", repos, err)
+	}
+	if _, err := worktree.ListFast(t.TempDir()); err == nil {
+		t.Fatal("expected non-repository error")
+	}
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("changed"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	items, err := worktree.List(r)
+	if err != nil || len(items) != 1 || !items[0].Dirty || items[0].Changes != 1 {
+		t.Fatalf("list: %#v, %v", items, err)
+	}
+}
+
+func TestWorktreeErrorsAndMaintenance(t *testing.T) {
+	r := repo(t)
+	c := config.Config{Layout: "sibling"}
+	if _, err := worktree.Add(r, "", "main", c); err == nil {
+		t.Fatal("empty branch must fail")
+	}
+	if _, err := worktree.Add(r, "AG-1", "main", c); err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.Remove(r, "missing"); err == nil {
+		t.Fatal("missing worktree must fail")
+	}
+	if err := worktree.Prune(r); err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.Fetch(r, "main"); err == nil {
+		t.Fatal("fetch without origin must fail")
+	}
+	if err := worktree.Update(r, "main"); err == nil {
+		t.Fatal("update without origin must fail")
+	}
+}

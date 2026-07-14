@@ -69,6 +69,7 @@ abre um subshell no worktree; ao sair, você volta ao diretório anterior.
 | `gwt rm <branch>` | Remove forçadamente o worktree do repositório atual. O checkout principal nunca é removido. |
 | `gwt list` | Lista os worktrees do repositório atual. |
 | `gwt prune` | Executa `git worktree prune` nos repositórios descobertos. |
+| `gwt help` | Mostra a ajuda da CLI. |
 | `gwt --version` | Mostra a versão do binário. |
 
 As flags de abertura são mutuamente exclusivas:

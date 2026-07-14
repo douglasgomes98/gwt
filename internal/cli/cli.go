@@ -28,6 +28,8 @@ func (a App) Run(args []string) error {
 		return fmt.Errorf("missing command")
 	}
 	switch args[0] {
+	case "help":
+		return a.help(args[1:])
 	case "add":
 		return a.add(args[1:])
 	case "open":
@@ -41,6 +43,25 @@ func (a App) Run(args []string) error {
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func (a App) help(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt help")
+	}
+	_, err := fmt.Fprint(a.Out, `Usage: gwt <command>
+
+Commands:
+  add <branch> [base] [-e|-a] [--all]  Create a worktree.
+  open <branch> [-e|-a|-p]             Open a worktree.
+  rm <branch>                          Remove a worktree.
+  list                                 List worktrees.
+  prune                                Prune stale worktrees.
+  help                                 Show this help.
+
+Run gwt without a command to open the TUI.
+`)
+	return err
 }
 
 func (a App) add(args []string) error {
@@ -154,7 +175,7 @@ func (a App) list(args []string) error {
 		return err
 	}
 	for _, x := range items {
-		fmt.Fprintf(a.Out, "%s\t%s\t%t\n", x.Branch, x.Path, x.Dirty)
+		fmt.Fprintf(a.Out, "%s\t%s\n", x.Path, x.Branch)
 	}
 	return nil
 }
