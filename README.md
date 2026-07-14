@@ -46,14 +46,17 @@ gwt add AG-123
 # cria AG-123 em api e web
 gwt add AG-123 --all
 
-# imprime o caminho do worktree atual
-gwt open AG-123 -p
-
 # abre um subshell no worktree
 gwt open AG-123
 
 # remove o worktree do repositório atual, sem confirmação
 gwt rm AG-123
+
+# remove AG-123 de todos os repositórios irmãos que tiverem essa branch
+gwt rm AG-123 --all
+
+# atualiza o checkout principal do repositório atual
+gwt update
 ```
 
 `gwt open` não consegue mudar o diretório do shell que o chamou. Por isso ele
@@ -65,10 +68,11 @@ abre um subshell no worktree; ao sair, você volta ao diretório anterior.
 | --- | --- |
 | `gwt` | Abre a TUI. |
 | `gwt add <branch> [base] [--all] [-e\|-a]` | Cria um worktree. `--all` cria nos repositórios irmãos. |
-| `gwt open <branch> [-e\|-a\|-p]` | Abre subshell (padrão), editor, agent ou apenas imprime o caminho. |
-| `gwt rm <branch>` | Remove forçadamente o worktree do repositório atual. O checkout principal nunca é removido. |
+| `gwt open <branch> [-e\|-a]` | Abre subshell (padrão), editor ou agent. |
+| `gwt rm <branch> [--all]` | Remove forçadamente o worktree atual ou a mesma branch dos repositórios irmãos. O checkout principal nunca é removido. |
 | `gwt list` | Lista os worktrees do repositório atual. |
 | `gwt prune` | Executa `git worktree prune` nos repositórios descobertos. |
+| `gwt update` | Atualiza o checkout principal limpo, na branch base, do repositório atual. |
 | `gwt help` | Mostra a ajuda da CLI. |
 | `gwt version` | Mostra a versão do binário. |
 
@@ -76,7 +80,6 @@ As flags de abertura são mutuamente exclusivas:
 
 - `-e`: usa o editor configurado.
 - `-a`: usa o agent configurado.
-- `-p`: imprime o caminho, sem abrir processo.
 
 ## TUI
 

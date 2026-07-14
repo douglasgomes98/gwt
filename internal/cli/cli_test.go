@@ -134,6 +134,53 @@ func TestRemoveAllIgnoresSiblingWithoutBranch(t *testing.T) {
 	}
 }
 
+func TestOpenUsesShellForExistingWorktree(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHELL", "true")
+	if err := a.Run([]string{"open", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUpdateFetchesCleanBaseRoot(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})
+	err := a.Run([]string{"update"})
+	if err == nil || !strings.Contains(err.Error(), "git fetch origin main") {
+		t.Fatalf("update error = %v, want fetch failure", err)
+	}
+}
+
+func TestUpdateRejectsDirtyRootBeforeFetch(t *testing.T) {
+	dir := testRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})
+	err := a.Run([]string{"update"})
+	if err == nil || !strings.Contains(err.Error(), "root has uncommitted changes") {
+		t.Fatalf("update error = %v, want dirty-root failure", err)
+	}
+}
+
+func TestUpdateRejectsWrongBranchBeforeFetch(t *testing.T) {
+	dir := testRepo(t)
+	cmd := exec.Command("git", "checkout", "-b", "other")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})
+	err := a.Run([]string{"update"})
+	if err == nil || !strings.Contains(err.Error(), "root must be on main") {
+		t.Fatalf("update error = %v, want wrong-branch failure", err)
+	}
+}
+
 func TestCommandErrorsAndHelpers(t *testing.T) {
 	a := App{Out: &bytes.Buffer{}, Err: &bytes.Buffer{}, Dir: t.TempDir()}
 	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}} {
