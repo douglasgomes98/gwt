@@ -31,7 +31,10 @@ type loaded struct {
 	err      error
 	detailed bool
 }
-type operationResult struct{ err error }
+type operationResult struct {
+	err     error
+	message string
+}
 
 func New(cwd string, c config.Config) Model { return Model{cwd: cwd, config: c, message: "loading…"} }
 func (m Model) Init() tea.Cmd               { return m.reload() }
@@ -97,6 +100,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case operationResult:
 		if x.err != nil {
 			m.message = x.err.Error()
+		} else if x.message != "" {
+			m.message = x.message
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -151,6 +156,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				_ = worktree.Prune(repo)
 			}
 			return m, m.reload()
+		case "u":
+			if m.group != "" {
+				return m, m.updateGroup()
+			}
 		case "n":
 			if m.projectCount() == 0 {
 				m.message = "select primary projects with space first"
@@ -262,12 +271,13 @@ func (m Model) View() tea.View {
 		b.WriteString("\n" + style("1;38;5;114", fmt.Sprintf("%s selected for new branch", projectCount(m.projectCount()))) + "  " + style("1", "space") + " toggle  " + style("1", "n") + " new branch")
 	}
 	if branch != "" {
-		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "e") + " editor  " + style("1", "a") + " agent")
+		b.WriteString("\n" + style("1", "Enter") + " shell  " + style("1", "esc") + " cancel  " + style("1", "e") + " editor  " + style("1", "a") + " agent")
 		if m.canRemoveGroup() {
 			b.WriteString("  " + style("1;38;5;208", "d") + " remove group")
 		}
+		b.WriteString("  " + style("1", "p") + " prune  " + style("1", "u") + " update " + m.baseBranch() + "  " + style("1", "q") + " quit")
 	}
-	if m.projectCount() > 0 || branch != "" {
+	if m.projectCount() > 0 && branch == "" {
 		b.WriteString("  " + style("1", "esc") + " cancel  " + style("1", "p") + " prune  " + style("1", "q") + " quit")
 	}
 	if m.input {
@@ -294,11 +304,14 @@ func (m Model) selectedBranch() string {
 }
 
 func (m Model) isProject(item worktree.Item) bool {
-	base := m.config.BaseBranch
-	if base == "" {
-		base = "main"
+	return item.Primary && item.Branch == m.baseBranch()
+}
+
+func (m Model) baseBranch() string {
+	if m.config.BaseBranch == "" {
+		return "main"
 	}
-	return item.Primary && item.Branch == base
+	return m.config.BaseBranch
 }
 
 func (m Model) canRemoveGroup() bool {
@@ -308,6 +321,20 @@ func (m Model) canRemoveGroup() bool {
 		}
 	}
 	return true
+}
+
+func (m Model) updateGroup() tea.Cmd {
+	branch, base, items := m.group, m.baseBranch(), m.items
+	return func() tea.Msg {
+		for _, item := range items {
+			if item.Branch == branch {
+				if err := worktree.Update(item.Path, base); err != nil {
+					return operationResult{err: err}
+				}
+			}
+		}
+		return operationResult{message: "updated from " + base}
+	}
 }
 
 func (m Model) activeItem() (worktree.Item, bool) {
@@ -399,14 +426,14 @@ func openShell(dir string) tea.Cmd {
 	if sh == "" {
 		sh = "/bin/sh"
 	}
-	return tea.ExecProcess(exec.Command(sh), func(err error) tea.Msg { return operationResult{err} })
+	return tea.ExecProcess(exec.Command(sh), func(err error) tea.Msg { return operationResult{err: err} })
 }
 func run(command, dir string) tea.Cmd {
 	if command == "" {
-		return func() tea.Msg { return operationResult{fmt.Errorf("command is not configured")} }
+		return func() tea.Msg { return operationResult{err: fmt.Errorf("command is not configured")} }
 	}
 	parts := strings.Fields(command)
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = dir
-	return tea.ExecProcess(cmd, func(err error) tea.Msg { return operationResult{err} })
+	return tea.ExecProcess(cmd, func(err error) tea.Msg { return operationResult{err: err} })
 }

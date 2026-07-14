@@ -153,3 +153,11 @@ func Remove(repo, branch string) error {
 
 func Fetch(repo, base string) error { _, err := git.Run(repo, "fetch", "origin", base); return err }
 func Prune(repo string) error       { _, err := git.Run(repo, "worktree", "prune"); return err }
+
+func Update(path, base string) error {
+	if err := Fetch(path, base); err != nil {
+		return err
+	}
+	_, err := git.Run(path, "merge", "--no-edit", "origin/"+base)
+	return err
+}

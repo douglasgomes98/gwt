@@ -92,6 +92,23 @@ func TestHelpNeedsSelection(t *testing.T) {
 	}
 }
 
+func TestSelectedGroupHelpOrder(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := New("/tmp", config.Config{BaseBranch: "main"})
+	m.items = []worktree.Item{{Repo: "api", Branch: "AG-1"}}
+	m.group = "AG-1"
+	view := m.View().Content
+	for _, text := range []string{"Enter shell", "esc cancel", "e editor", "a agent", "d remove group", "p prune", "u update main", "q quit"} {
+		if !strings.Contains(view, text) {
+			t.Fatalf("missing %q", text)
+		}
+	}
+	_, update := m.Update(tea.KeyPressMsg{Code: 'u', Text: "u"})
+	if update == nil {
+		t.Fatal("u must update the selected group")
+	}
+}
+
 func TestPrimaryProjectsStartUnselected(t *testing.T) {
 	m := New("/tmp", config.Config{})
 	m.items = []worktree.Item{{Repo: "api", Branch: "main", Path: "/tmp/api", Primary: true}}
