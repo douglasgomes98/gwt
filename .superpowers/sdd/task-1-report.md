@@ -74,3 +74,40 @@ All commands completed successfully.
 ### Concerns
 
 None.
+
+---
+
+## Top-level null review fix
+
+### Changed files
+
+- `internal/config/config.go`: rejects a document whose explicit top-level value is YAML null while retaining empty-file defaults.
+- `internal/config/config_test.go`: covers explicit top-level null and source-path context.
+
+### Red/green evidence
+
+Red command:
+
+```sh
+go test ./internal/config -run TestLoadRejectsTopLevelNullConfig -count=1
+```
+
+It failed because top-level null was accepted.
+
+Green commands:
+
+```sh
+go test ./internal/config ./internal/cli -count=1
+go test ./... -count=1
+git diff --check
+```
+
+All commands completed successfully.
+
+### Commit
+
+`19a95d6 fix(config): reject null document`
+
+### Concerns
+
+None.
