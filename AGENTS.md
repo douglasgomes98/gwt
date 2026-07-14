@@ -47,6 +47,11 @@ paths; use `t.Setenv()` for environment-dependent behavior. Keep project
 coverage above 90%; run `make test` and `make coverage` before opening a pull
 request.
 
+## Documentation
+
+For every added or modified feature, review the README and update it when
+needed so new users can discover and use the behavior.
+
 ## Commit & Pull Request Guidelines
 
 Follow the existing Conventional Commit style: `fix(tui): open shell in selected
