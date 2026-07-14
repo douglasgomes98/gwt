@@ -76,3 +76,15 @@ func TestLoadRejectsNullFields(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadRejectsTopLevelNullConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gwt.yml")
+	if err := os.WriteFile(path, []byte("null\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(dir)
+	if err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("error %v does not include %q", err, path)
+	}
+}

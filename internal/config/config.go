@@ -67,6 +67,9 @@ func rejectNullFields(data []byte) error {
 		return err
 	}
 	if len(document.Content) == 0 || document.Content[0].Kind != yaml.MappingNode {
+		if len(document.Content) > 0 && document.Content[0].Tag == "!!null" {
+			return errors.New("config cannot be null")
+		}
 		return nil
 	}
 	for i := 0; i < len(document.Content[0].Content); i += 2 {
