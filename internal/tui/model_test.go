@@ -2,6 +2,8 @@ package tui
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -89,7 +91,7 @@ func TestDetachedItemIsVisibleButCannotBeSelected(t *testing.T) {
 	if len(m.selected) != 0 || m.feature != "" {
 		t.Fatal("detached item selected")
 	}
-	if !strings.Contains(m.View().Content, "api.detached") {
+	if !strings.Contains(m.View().Content, "api.detached") || !strings.Contains(m.View().Content, "(detached)") {
 		t.Fatal("detached item not visible")
 	}
 }
@@ -118,6 +120,16 @@ func TestPaletteAddStartsBranchInputWithoutMutation(t *testing.T) {
 	m = press(m, "enter")
 	if m.palette || !m.input || m.branch != "" || m.message != "branch: " {
 		t.Fatalf("add state: %#v", m)
+	}
+}
+
+func TestBranchInputRendersAfterBranchLabel(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m = press(m, "space")
+	m, _ = m.execute(actionAdd)
+	m = press(m, "A")
+	if !strings.Contains(m.View().Content, "branch: A") {
+		t.Fatalf("branch input: %q", m.View().Content)
 	}
 }
 
@@ -169,4 +181,100 @@ func TestLoadedDetailedResultWins(t *testing.T) {
 	if updated.(Model).message != "detailed" {
 		t.Fatal("fast result replaced detailed state")
 	}
+}
+
+func TestTUIAddUsesOnlySelectedRootsAndNoFetch(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	web := tuiTestRepo(t, parent, "web")
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: api, Primary: true},
+		{Repo: "web", Branch: "main", Path: web, Primary: true},
+	})
+	m.selected[api] = true
+	m, _ = m.execute(actionAdd)
+	if !m.input {
+		t.Fatal("add did not start branch input")
+	}
+	for _, key := range []string{"A", "G", "-", "1"} {
+		m = press(m, key)
+	}
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "enter"})
+	if cmd == nil {
+		t.Fatal("enter did not add selected roots")
+	}
+	result := cmd()
+	m = updated.(Model)
+	m.Update(result)
+	if _, err := os.Stat(filepath.Join(parent, "api.AG-1")); err != nil {
+		t.Fatalf("selected root not added: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(parent, "web.AG-1")); !os.IsNotExist(err) {
+		t.Fatalf("unselected root changed: %v", err)
+	}
+}
+
+func TestTUIRemoveAllUsesOnlySelectedFeatureRows(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	web := tuiTestRepo(t, parent, "web")
+	apiFeature, err := worktree.Add(api, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	webFeature, err := worktree.Add(web, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: api, Primary: true},
+		{Repo: "api", Branch: "AG-1", Path: apiFeature},
+		{Repo: "web", Branch: "main", Path: web, Primary: true},
+		{Repo: "web", Branch: "AG-1", Path: webFeature},
+	})
+	m.feature = "AG-1"
+	m.selected[apiFeature] = true
+	m, _ = m.execute(actionRemoveAll)
+	if !m.confirm {
+		t.Fatal("remove did not request confirmation")
+	}
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "enter"})
+	if cmd == nil {
+		t.Fatal("confirmation did not remove selected rows")
+	}
+	m = updated.(Model)
+	m.Update(cmd())
+	if _, err := os.Stat(apiFeature); !os.IsNotExist(err) {
+		t.Fatalf("selected feature was not removed: %v", err)
+	}
+	if _, err := os.Stat(webFeature); err != nil {
+		t.Fatalf("unselected feature was removed: %v", err)
+	}
+}
+
+func TestOperationResultClearsSelectionAndReloads(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
+	m.feature = "AG-1"
+	m.selected["/api.AG-1"] = true
+	updated, cmd := m.Update(operationResult{message: "done", reload: true})
+	got := updated.(Model)
+	if got.feature != "" || len(got.selected) != 0 || cmd == nil {
+		t.Fatal("operation did not reset")
+	}
+}
+
+func tuiTestRepo(t *testing.T, parent, name string) string {
+	t.Helper()
+	dir := filepath.Join(parent, name)
+	if err := os.Mkdir(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "test@example.com"}, {"config", "user.name", "Test"}, {"commit", "--allow-empty", "-m", "init"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	return dir
 }

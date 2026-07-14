@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -23,6 +24,8 @@ type Model struct {
 	pCursor  int
 	input    bool
 	branch   string
+	confirm  bool
+	pending  action
 	message  string
 	detailed bool
 }
@@ -45,6 +48,12 @@ type loaded struct {
 	items    []worktree.Item
 	err      error
 	detailed bool
+}
+
+type operationResult struct {
+	err     error
+	message string
+	reload  bool
 }
 
 func New(cwd string, c config.Config) Model {
@@ -82,6 +91,19 @@ func (m Model) load(detailed bool) tea.Cmd {
 }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch x := msg.(type) {
+	case operationResult:
+		m.palette, m.confirm, m.input = false, false, false
+		m.pending = ""
+		m.clearSelection()
+		if x.err != nil {
+			m.message = x.err.Error()
+		} else {
+			m.message = x.message
+		}
+		if x.reload {
+			return m, m.reload()
+		}
+		return m, nil
 	case loaded:
 		if m.detailed && !x.detailed {
 			return m, nil
@@ -100,6 +122,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.confirm {
+			switch x.String() {
+			case "esc", "n":
+				m.confirm = false
+			case "enter", "y":
+				m.confirm = false
+				return m, m.removeSelected()
+			}
+			return m, nil
+		}
 		if m.input {
 			return m.typeBranch(x)
 		}
@@ -116,12 +148,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.pCursor--
 				}
 			case "enter":
-				if actions := m.availableActions(); m.pCursor < len(actions) && (actions[m.pCursor] == actionAdd || actions[m.pCursor] == actionAddAll) {
-					m.input = true
-					m.branch = ""
-					m.message = "branch: "
+				if actions := m.availableActions(); m.pCursor < len(actions) {
+					return m.execute(actions[m.pCursor])
 				}
-				m.palette = false
 			}
 			return m, nil
 		}
@@ -168,8 +197,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch s := k.String(); s {
-	case "esc", "enter":
+	case "esc":
 		m.input = false
+	case "enter":
+		m.input = false
+		return m, m.addSelected()
 	case "backspace":
 		if len(m.branch) > 0 {
 			m.branch = m.branch[:len(m.branch)-1]
@@ -182,15 +214,155 @@ func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) execute(a action) (Model, tea.Cmd) {
+	switch a {
+	case actionAdd, actionAddAll:
+		m.palette, m.input, m.branch = false, true, ""
+		m.message = "branch: "
+		return m, nil
+	case actionRemove, actionRemoveAll:
+		m.palette, m.confirm, m.pending = false, true, a
+		return m, nil
+	case actionPrune:
+		return m, m.pruneSelected()
+	case actionUpdate:
+		return m, m.updateSelectedRoots()
+	default:
+		return m, m.openSelected(a)
+	}
+}
+
+func (m Model) addSelected() tea.Cmd {
+	roots, branch := m.selectedRoots(), m.branch
+	return func() tea.Msg {
+		for _, root := range roots {
+			if _, err := worktree.Add(root.Path, branch, m.baseBranch(), m.config); err != nil {
+				return operationResult{err: partial(actionAdd, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("added %d worktrees", len(roots)), reload: true}
+	}
+}
+
+func (m Model) removeSelected() tea.Cmd {
+	items := m.selectedFeatureItems()
+	return func() tea.Msg {
+		for _, item := range items {
+			root, ok := m.rootFor(item)
+			if !ok {
+				return operationResult{err: partial(m.pending, fmt.Errorf("root for %s not found", item.Repo)), reload: true}
+			}
+			if err := worktree.Remove(root.Path, item.Branch); err != nil {
+				return operationResult{err: partial(m.pending, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("removed %d worktrees", len(items)), reload: true}
+	}
+}
+
+func (m Model) pruneSelected() tea.Cmd {
+	repos := m.selectedRepoPaths()
+	return func() tea.Msg {
+		for _, repo := range repos {
+			if err := worktree.Prune(repo); err != nil {
+				return operationResult{err: partial(actionPrune, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("pruned %d repos", len(repos)), reload: true}
+	}
+}
+
+func (m Model) updateSelectedRoots() tea.Cmd {
+	roots := m.selectedRoots()
+	return func() tea.Msg {
+		for _, root := range roots {
+			if err := worktree.Update(root.Path, m.baseBranch()); err != nil {
+				return operationResult{err: partial(actionUpdate, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("updated %d roots", len(roots)), reload: true}
+	}
+}
+
+func (m Model) openSelected(a action) tea.Cmd {
+	items := m.selectedFeatureItems()
+	return func() tea.Msg {
+		if len(items) != 1 {
+			return operationResult{err: fmt.Errorf("select one worktree to open"), reload: true}
+		}
+		var err error
+		switch a {
+		case actionOpenEditor:
+			err = runAt(m.config.Editor, items[0].Path)
+		case actionOpenAgent:
+			err = runAt(m.config.Agent, items[0].Path)
+		default:
+			err = openShell(items[0].Path)
+		}
+		return operationResult{err: err, message: "opened " + items[0].Path, reload: true}
+	}
+}
+
+func (m Model) rootFor(item worktree.Item) (worktree.Item, bool) {
+	for _, root := range m.items {
+		if root.Repo == item.Repo && m.isProject(root) {
+			return root, true
+		}
+	}
+	return worktree.Item{}, false
+}
+
+func (m Model) selectedRepoPaths() []string {
+	seen := map[string]bool{}
+	var repos []string
+	for _, root := range m.selectedRoots() {
+		if !seen[root.Path] {
+			seen[root.Path] = true
+			repos = append(repos, root.Path)
+		}
+	}
+	for _, item := range m.selectedFeatureItems() {
+		if root, ok := m.rootFor(item); ok && !seen[root.Path] {
+			seen[root.Path] = true
+			repos = append(repos, root.Path)
+		}
+	}
+	return repos
+}
+
+func partial(a action, err error) error { return fmt.Errorf("%s: result may be partial: %w", a, err) }
+
+func runAt(command, dir string) error {
+	if command == "" {
+		return fmt.Errorf("command is not configured")
+	}
+	parts := strings.Fields(command)
+	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd.Dir, cmd.Stdin, cmd.Stdout, cmd.Stderr = dir, os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+func openShell(dir string) error {
+	sh := os.Getenv("SHELL")
+	if sh == "" {
+		sh = "/bin/sh"
+	}
+	return runAt(sh, dir)
+}
+
 func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
 	last := ""
 	for i, item := range m.items {
-		if item.Branch != last {
+		if i == 0 || item.Branch != last {
 			last = item.Branch
-			header := last + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
-			if last == m.feature {
+			branch := item.Branch
+			if item.Detached {
+				branch = "(detached)"
+			}
+			header := branch + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
+			if m.feature != "" && last == m.feature {
 				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(len(m.selectedFeatureItems()))))
 			}
 			b.WriteString(header + "\n")
@@ -218,6 +390,9 @@ func (m Model) View() tea.View {
 	b.WriteString("\n" + style("2", m.message))
 	if m.input {
 		b.WriteString(m.branch)
+	}
+	if m.confirm {
+		b.WriteString("\n" + style("1", "remove selected worktrees? enter/y confirm  esc/n cancel"))
 	}
 	if m.palette {
 		b.WriteString("\n\n" + style("1", "commands") + "\n")
@@ -271,6 +446,11 @@ func (m *Model) clearFeature() {
 			m.selected[item.Path] = false
 		}
 	}
+	m.feature = ""
+}
+
+func (m *Model) clearSelection() {
+	m.selected = map[string]bool{}
 	m.feature = ""
 }
 
