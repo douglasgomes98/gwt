@@ -77,6 +77,43 @@ None.
 
 ---
 
+## Empty local config review fix
+
+### Changed files
+
+- `internal/config/config.go`: treats an initial YAML decoder EOF as an empty configuration and returns defaults.
+- `internal/config/config_test.go`: covers an empty local `gwt.yml` returning all defaults.
+
+### Red/green evidence
+
+Red command:
+
+```sh
+go test ./internal/config -run TestLoadDefaultsForEmptyLocalConfig -count=1
+```
+
+It failed because an empty file returned `parse config ...: EOF`.
+
+Green commands:
+
+```sh
+go test ./internal/config ./internal/cli -count=1
+go test ./... -count=1
+git diff --check
+```
+
+All commands completed successfully. The focused green run also included `TestLoadRejectsTopLevelNullConfig`.
+
+### Commit
+
+`73a8751 fix(config): allow empty configuration`
+
+### Concerns
+
+None.
+
+---
+
 ## Top-level null review fix
 
 ### Changed files
