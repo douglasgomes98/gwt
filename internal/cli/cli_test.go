@@ -107,6 +107,15 @@ func TestPruneRejectsArguments(t *testing.T) {
 	}
 }
 
+func TestV0CLIRejectsRemovedCompatibilityForms(t *testing.T) {
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	for _, args := range [][]string{{"open", "AG-1", "-p"}, {"prune", "extra"}, {"version", "extra"}} {
+		if err := a.Run(args); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+}
+
 func TestAddAllDoesNotRequireRemote(t *testing.T) {
 	dir := testRepo(t)
 	sibling := filepath.Join(filepath.Dir(dir), "sibling")
@@ -134,6 +143,28 @@ func TestRemoveAllIgnoresSiblingWithoutBranch(t *testing.T) {
 	}
 }
 
+func TestListDisplaysDetachedWorktree(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(filepath.Dir(dir), filepath.Base(dir)+".AG-1")
+	cmd := exec.Command("git", "checkout", "--detach")
+	cmd.Dir = path
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	var out bytes.Buffer
+	a.Out = &out
+	if err := a.Run([]string{"list"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), path+"\t(detached)\t(clean)") {
+		t.Fatalf("list output: %q", out.String())
+	}
+}
+
 func TestOpenUsesShellForExistingWorktree(t *testing.T) {
 	dir := testRepo(t)
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
@@ -143,6 +174,31 @@ func TestOpenUsesShellForExistingWorktree(t *testing.T) {
 	t.Setenv("SHELL", "true")
 	if err := a.Run([]string{"open", "AG-1"}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOpenConfiguredCommandsAndUsageErrors(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main", Editor: "true", Agent: "true"})
+	if err := a.Run([]string{"add", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"open", "AG-1", "-e"}, {"open", "AG-1", "-a"}} {
+		if err := a.Run(args); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	for _, args := range [][]string{{"open", "AG-1", "-e", "-a"}, {"open", "missing"}, {"rm", "AG-1", "--all", "extra"}, {"update", "extra"}} {
+		if err := a.Run(args); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+}
+
+func TestRemoveAllRequiresAtLeastOneMatch(t *testing.T) {
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"rm", "missing", "--all"}); err == nil {
+		t.Fatal("rm --all accepted a missing branch")
 	}
 }
 

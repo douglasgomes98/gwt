@@ -185,6 +185,39 @@ func TestFindReturnsPrimary(t *testing.T) {
 	}
 }
 
+func TestRepositoryBoundariesAndExistingBranch(t *testing.T) {
+	notRepo := t.TempDir()
+	if got := worktree.Root(notRepo); got != notRepo {
+		t.Fatalf("root: %q", got)
+	}
+	if _, err := worktree.CurrentRepo(notRepo); err == nil {
+		t.Fatal("non-repository accepted")
+	}
+	r := repo(t)
+	sibling := filepath.Join(filepath.Dir(r), "web")
+	if err := os.Mkdir(sibling, 0755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, sibling, "init", "-b", "main")
+	repos, err := worktree.Repos(r)
+	if err != nil || len(repos) != 2 {
+		t.Fatalf("repos: %v, %v", repos, err)
+	}
+	path, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.Remove(r, "AG-1"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "sibling"}); err != nil || got != path {
+		t.Fatalf("existing branch: %q, %v", got, err)
+	}
+	if _, err := worktree.Find(r, "missing"); err == nil {
+		t.Fatal("missing worktree accepted")
+	}
+}
+
 func TestUpdateRejectsDirtyBeforeFetch(t *testing.T) {
 	r := repo(t)
 	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0644); err != nil {

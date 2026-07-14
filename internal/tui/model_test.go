@@ -37,6 +37,28 @@ func TestFeatureSelectionStartsWholeGroupThenTogglesOne(t *testing.T) {
 	}
 }
 
+func TestFeatureSelectionRequiresEscapeBeforeChangingGroups(t *testing.T) {
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+		{Repo: "api", Branch: "AG-2", Path: "/api.AG-2"},
+	})
+	m = press(m, "space")
+	m.cursor = 1
+	m = press(m, "space")
+	if m.feature != "AG-1" || !m.selected["/api.AG-1"] || m.selected["/api.AG-2"] {
+		t.Fatalf("feature changed without escape: %#v", m)
+	}
+}
+
+func TestFeatureSelectionClearsWhenLastItemIsDeselected(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
+	m = press(m, "space")
+	m = press(m, "space")
+	if m.feature != "" || len(m.selectedFeatureItems()) != 0 {
+		t.Fatalf("empty feature selection remained active: %#v", m)
+	}
+}
+
 func TestRootAndFeatureSelectionsAreExclusive(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}, {Repo: "api", Branch: "AG-1", Path: "/api.A"}})
 	m = press(m, "space")
@@ -180,6 +202,233 @@ func TestLoadedDetailedResultWins(t *testing.T) {
 	updated, _ := m.Update(loaded{items: []worktree.Item{{Branch: "old"}}})
 	if updated.(Model).message != "detailed" {
 		t.Fatal("fast result replaced detailed state")
+	}
+}
+
+func TestLoadListsAndSortsWorktrees(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	web := tuiTestRepo(t, parent, "web")
+	if _, err := worktree.Add(api, "AG-2", "main", config.Config{Layout: "sibling"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worktree.Add(web, "AG-1", "main", config.Config{Layout: "sibling"}); err != nil {
+		t.Fatal(err)
+	}
+	m := New(api, config.Config{})
+	if m.Init() == nil {
+		t.Fatal("init did not load")
+	}
+	fast := m.load(false)().(loaded)
+	detailed := m.load(true)().(loaded)
+	if fast.err != nil || detailed.err != nil || len(fast.items) != 4 || len(detailed.items) != 4 {
+		t.Fatalf("load: fast=%#v detailed=%#v", fast, detailed)
+	}
+	for i := 1; i < len(fast.items); i++ {
+		if fast.items[i-1].Branch > fast.items[i].Branch {
+			t.Fatalf("items not sorted: %#v", fast.items)
+		}
+	}
+}
+
+func TestLoadReportsRepositoryError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(path, nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := New(path, config.Config{})
+	got := m.load(false)().(loaded)
+	if got.err == nil || got.detailed {
+		t.Fatalf("load error: %#v", got)
+	}
+}
+
+func TestInputAndConfirmationCancellation(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m, _ = m.execute(actionAdd)
+	m = press(m, "A")
+	m = press(m, "backspace")
+	m = press(m, "esc")
+	if m.input || m.branch != "" {
+		t.Fatalf("input was not cancelled: %#v", m)
+	}
+	m.feature = "AG-1"
+	m.selected["/api.AG-1"] = true
+	m, _ = m.execute(actionRemove)
+	m = press(m, "n")
+	if m.confirm {
+		t.Fatalf("confirmation was not cancelled: %#v", m)
+	}
+}
+
+func TestPaletteAndNavigationBounds(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m = press(m, "up")
+	m = press(m, "down")
+	m = press(m, "down")
+	if m.cursor != 0 {
+		t.Fatalf("cursor out of bounds: %d", m.cursor)
+	}
+	m = press(m, "space")
+	m = press(m, "enter")
+	for range 4 {
+		m = press(m, "down")
+	}
+	if m.pCursor != len(m.availableActions())-1 {
+		t.Fatalf("palette cursor: %d", m.pCursor)
+	}
+	for range 4 {
+		m = press(m, "up")
+	}
+	if m.pCursor != 0 {
+		t.Fatalf("palette cursor: %d", m.pCursor)
+	}
+}
+
+func TestSelectedRepoPathsAndCommandHelpers(t *testing.T) {
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: "/api", Primary: true},
+		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+		{Repo: "web", Branch: "main", Path: "/web", Primary: true},
+		{Repo: "web", Branch: "AG-1", Path: "/web.AG-1"},
+	})
+	m.selected["/api"] = true
+	if got := m.selectedRepoPaths(); !slices.Equal(got, []string{"/api"}) {
+		t.Fatalf("roots: %v", got)
+	}
+	m.clearRoots()
+	m.feature = "AG-1"
+	m.selected["/api.AG-1"] = true
+	m.selected["/web.AG-1"] = true
+	if got := m.selectedRepoPaths(); !slices.Equal(got, []string{"/api", "/web"}) {
+		t.Fatalf("features: %v", got)
+	}
+	if err := runAt("", t.TempDir()); err == nil {
+		t.Fatal("empty command accepted")
+	}
+	if err := runAt("true", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHELL", "true")
+	if err := openShell(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPruneAndUpdateCommandsReload(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: api, Primary: true}})
+	m.selected[api] = true
+	result := m.pruneSelected()().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("prune result: %#v", result)
+	}
+	result = m.updateSelectedRoots()().(operationResult)
+	if result.err == nil || !result.reload || !strings.Contains(result.err.Error(), "result may be partial") {
+		t.Fatalf("update result: %#v", result)
+	}
+}
+
+func TestOpenSelectedRunsConfiguredCommandAndRejectsEmptySelection(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: t.TempDir()}})
+	m.feature = "AG-1"
+	m.selected[m.items[0].Path] = true
+	m.config.Editor = "true"
+	result := m.openSelected(actionOpenEditor)().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("open result: %#v", result)
+	}
+	t.Setenv("SHELL", "true")
+	result = m.openSelected(actionOpen)().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("shell result: %#v", result)
+	}
+	m.config.Agent = "true"
+	result = m.openSelected(actionOpenAgent)().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("agent result: %#v", result)
+	}
+	m.clearSelection()
+	result = m.openSelected(actionOpen)().(operationResult)
+	if result.err == nil || !result.reload {
+		t.Fatalf("empty open result: %#v", result)
+	}
+}
+
+func TestSelectionOperationsReportRealBoundaryErrors(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: t.TempDir()}})
+	m.feature = "AG-1"
+	m.selected[m.items[0].Path] = true
+	result := m.removeSelected()().(operationResult)
+	if result.err == nil || !result.reload || !strings.Contains(result.err.Error(), "root for api not found") {
+		t.Fatalf("remove result: %#v", result)
+	}
+	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: t.TempDir(), Primary: true}})
+	m.selected[m.items[0].Path] = true
+	result = m.addSelected()().(operationResult)
+	if result.err == nil || !result.reload || !strings.Contains(result.err.Error(), "branch is required") {
+		t.Fatalf("add result: %#v", result)
+	}
+}
+
+func TestExecuteAndSelectionHelpersCoverContextualActions(t *testing.T) {
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "trunk", Path: "/api", Primary: true},
+		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+	})
+	m.config.BaseBranch = "trunk"
+	if _, ok := m.rootFor(worktree.Item{Repo: "web"}); m.baseBranch() != "trunk" || ok {
+		t.Fatal("selection helpers")
+	}
+	m.feature = "AG-1"
+	m.selected["/api.AG-1"] = true
+	if _, ok := m.rootFor(m.items[1]); !ok {
+		t.Fatal("feature root not found")
+	}
+	m, cmd := m.execute(actionPrune)
+	if cmd == nil || m.palette {
+		t.Fatal("prune was not dispatched")
+	}
+	m, cmd = m.execute(actionUpdate)
+	if cmd == nil {
+		t.Fatal("update was not dispatched")
+	}
+	m, cmd = m.execute(actionOpenAgent)
+	if cmd == nil {
+		t.Fatal("open was not dispatched")
+	}
+}
+
+func TestViewHandlesEmptyAndColoredStates(t *testing.T) {
+	os.Unsetenv("NO_COLOR")
+	os.Unsetenv("TERM")
+	m := modelWith(nil)
+	if !strings.Contains(m.View().Content, "(no worktrees)") {
+		t.Fatal("empty state missing")
+	}
+	if got := plural(1); got != "" {
+		t.Fatalf("singular suffix: %q", got)
+	}
+	if got := highlight("row"); !strings.Contains(got, "row") || got == "row" {
+		t.Fatalf("highlight: %q", got)
+	}
+	if got := style("1", "text"); !strings.Contains(got, "text") || got == "text" {
+		t.Fatalf("style: %q", got)
+	}
+}
+
+func TestViewShowsInputConfirmationAndPalette(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
+	m.feature = "AG-1"
+	m.selected["/api.AG-1"] = true
+	m.input, m.branch, m.confirm, m.palette, m.message = true, "AG-2", true, true, "branch: "
+	view := m.View().Content
+	for _, want := range []string{"branch: AG-2", "remove selected worktrees", "commands", "open"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("view missing %q: %q", want, view)
+		}
 	}
 }
 

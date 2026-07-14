@@ -174,7 +174,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.clearFeature()
 					m.selected[item.Path] = !m.selected[item.Path]
 				} else if !item.Detached {
-					if m.feature != item.Branch {
+					if m.feature == "" {
 						m.feature = item.Branch
 						m.clearRoots()
 						for _, candidate := range m.items {
@@ -182,8 +182,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								m.selected[candidate.Path] = true
 							}
 						}
-					} else {
+					} else if m.feature == item.Branch {
 						m.selected[item.Path] = !m.selected[item.Path]
+						if len(m.selectedFeatureItems()) == 0 {
+							m.clearFeature()
+						}
 					}
 				}
 			}
