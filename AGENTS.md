@@ -39,11 +39,13 @@ context, as `internal/git.Run` does.
 
 ## Testing Guidelines
 
-Tests use Go's built-in `testing` package. Cover observable behavior and error
-paths, especially Git operations and destructive-worktree safeguards. Use
-`t.TempDir()` and temporary Git repositories rather than local checkout paths;
-use `t.Setenv()` for environment-dependent behavior. Run `make test` before
-opening a pull request and `make coverage` when changing core worktree logic.
+Follow TDD: write or update unit tests before implementing behavior changes.
+Tests use Go's built-in `testing` package. Cover all observable behavior and
+error paths, especially Git operations and destructive-worktree safeguards.
+Use `t.TempDir()` and temporary Git repositories rather than local checkout
+paths; use `t.Setenv()` for environment-dependent behavior. Keep project
+coverage above 90%; run `make test` and `make coverage` before opening a pull
+request.
 
 ## Commit & Pull Request Guidelines
 
