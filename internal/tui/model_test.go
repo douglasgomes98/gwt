@@ -263,6 +263,28 @@ func TestOperationResultClearsSelectionAndReloads(t *testing.T) {
 	}
 }
 
+func TestOperationResultPartialErrorSurvivesReloadMessages(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
+	updated, _ := m.Update(operationResult{err: partial(actionAdd, os.ErrPermission), reload: true})
+	m = updated.(Model)
+	updated, _ = m.Update(loaded{items: m.items, detailed: false})
+	m = updated.(Model)
+	updated, _ = m.Update(loaded{items: m.items, detailed: true})
+	m = updated.(Model)
+	if !strings.Contains(m.View().Content, "result may be partial") {
+		t.Fatalf("operation error lost after reload: %q", m.View().Content)
+	}
+}
+
+func TestUserInteractionClearsOperationResult(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
+	updated, _ := m.Update(operationResult{err: partial(actionAdd, os.ErrPermission)})
+	m = press(updated.(Model), "down")
+	if strings.Contains(m.View().Content, "result may be partial") {
+		t.Fatalf("operation error remained after user input: %q", m.View().Content)
+	}
+}
+
 func tuiTestRepo(t *testing.T, parent, name string) string {
 	t.Helper()
 	dir := filepath.Join(parent, name)

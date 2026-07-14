@@ -27,6 +27,7 @@ type Model struct {
 	confirm  bool
 	pending  action
 	message  string
+	result   string
 	detailed bool
 }
 
@@ -96,9 +97,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pending = ""
 		m.clearSelection()
 		if x.err != nil {
-			m.message = x.err.Error()
+			m.result = x.err.Error()
 		} else {
-			m.message = x.message
+			m.result = x.message
 		}
 		if x.reload {
 			return m, m.reload()
@@ -122,6 +123,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyPressMsg:
+		m.result = ""
 		if m.confirm {
 			switch x.String() {
 			case "esc", "n":
@@ -387,7 +389,11 @@ func (m Model) View() tea.View {
 	if len(m.items) == 0 {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
-	b.WriteString("\n" + style("2", m.message))
+	status := m.message
+	if m.result != "" {
+		status = m.result
+	}
+	b.WriteString("\n" + style("2", status))
 	if m.input {
 		b.WriteString(m.branch)
 	}
