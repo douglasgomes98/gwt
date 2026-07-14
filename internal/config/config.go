@@ -1,7 +1,11 @@
 package config
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
@@ -14,25 +18,64 @@ type Config struct {
 	Agent      string `yaml:"agent"`
 }
 
-func Load(start string) Config {
-	c := Config{Layout: "sibling", BaseBranch: "main", Editor: "code"}
+type fileConfig struct {
+	Layout     *string `yaml:"layout"`
+	BaseBranch *string `yaml:"baseBranch"`
+	Editor     *string `yaml:"editor"`
+	Agent      *string `yaml:"agent"`
+}
+
+func Load(start string) (Config, error) {
+	defaults := Config{Layout: "sibling", BaseBranch: "main", Editor: "code", Agent: "claude"}
+	for _, path := range configPaths(start) {
+		data, err := os.ReadFile(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return Config{}, fmt.Errorf("read config %s: %w", path, err)
+		}
+		var raw fileConfig
+		dec := yaml.NewDecoder(bytes.NewReader(data))
+		dec.KnownFields(true)
+		if err := dec.Decode(&raw); err != nil {
+			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
+		}
+		return apply(raw, defaults)
+	}
+	return defaults, nil
+}
+
+func configPaths(start string) []string {
 	paths := []string{filepath.Join(start, "gwt.yml")}
 	if home, err := os.UserHomeDir(); err == nil {
 		paths = append(paths, filepath.Join(home, ".config/gwt/config.yml"))
 	}
-	for _, p := range paths {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			continue
+	return paths
+}
+
+func apply(raw fileConfig, defaults Config) (Config, error) {
+	config := defaults
+	if raw.Layout != nil {
+		if *raw.Layout != "sibling" && *raw.Layout != "grouped" && *raw.Layout != "inside" {
+			return Config{}, fmt.Errorf("invalid layout %q", *raw.Layout)
 		}
-		_ = yaml.Unmarshal(b, &c)
-		break
+		config.Layout = *raw.Layout
 	}
-	if c.Layout == "" {
-		c.Layout = "sibling"
+	if raw.BaseBranch != nil {
+		if *raw.BaseBranch == "" {
+			return Config{}, errors.New("baseBranch cannot be empty")
+		}
+		if err := exec.Command("git", "check-ref-format", "--branch", *raw.BaseBranch).Run(); err != nil {
+			return Config{}, fmt.Errorf("invalid baseBranch %q", *raw.BaseBranch)
+		}
+		config.BaseBranch = *raw.BaseBranch
 	}
-	if c.BaseBranch == "" {
-		c.BaseBranch = "main"
+	if raw.Editor != nil {
+		config.Editor = *raw.Editor
 	}
-	return c
+	if raw.Agent != nil {
+		config.Agent = *raw.Agent
+	}
+	return config, nil
 }

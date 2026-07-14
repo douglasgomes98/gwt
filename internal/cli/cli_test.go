@@ -97,10 +97,24 @@ func TestCommandErrorsAndHelpers(t *testing.T) {
 
 func TestHelpListsCommands(t *testing.T) {
 	var out bytes.Buffer
-	if err := New(&out, &bytes.Buffer{}).Run([]string{"help"}); err != nil {
+	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) {
 		t.Fatalf("unexpected help: %q", got)
+	}
+}
+
+func TestVersion(t *testing.T) {
+	var out bytes.Buffer
+	a := New(&out, &bytes.Buffer{}, t.TempDir(), "v1.2.3", config.Config{})
+	if err := a.Run([]string{"version"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); got != "v1.2.3\n" {
+		t.Fatalf("version output: %q", got)
+	}
+	if err := a.Run([]string{"version", "extra"}); err == nil {
+		t.Fatal("version with extra arguments must fail")
 	}
 }

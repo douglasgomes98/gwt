@@ -15,12 +15,12 @@ import (
 type App struct {
 	Out, Err io.Writer
 	Dir      string
+	Version  string
 	Config   config.Config
 }
 
-func New(out, err io.Writer) App {
-	cwd, _ := os.Getwd()
-	return App{Out: out, Err: err, Dir: cwd, Config: config.Load(cwd)}
+func New(out, err io.Writer, dir, version string, cfg config.Config) App {
+	return App{Out: out, Err: err, Dir: dir, Version: version, Config: cfg}
 }
 
 func (a App) Run(args []string) error {
@@ -28,6 +28,8 @@ func (a App) Run(args []string) error {
 		return fmt.Errorf("missing command")
 	}
 	switch args[0] {
+	case "version":
+		return a.version(args[1:])
 	case "help":
 		return a.help(args[1:])
 	case "add":
@@ -45,6 +47,14 @@ func (a App) Run(args []string) error {
 	}
 }
 
+func (a App) version(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt version")
+	}
+	_, err := fmt.Fprintln(a.Out, a.Version)
+	return err
+}
+
 func (a App) help(args []string) error {
 	if len(args) != 0 {
 		return fmt.Errorf("usage: gwt help")
@@ -57,6 +67,7 @@ Commands:
   rm <branch>                          Remove a worktree.
   list                                 List worktrees.
   prune                                Prune stale worktrees.
+  version                              Show the version.
   help                                 Show this help.
 
 Run gwt without a command to open the TUI.
