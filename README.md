@@ -85,17 +85,14 @@ As flags de abertura são mutuamente exclusivas:
 
 | Tecla | Ação |
 | --- | --- |
-| `n` | Informa a branch, seleciona os repositórios e cria os worktrees. |
-| `Enter` | Abre um subshell no worktree selecionado. |
-| `e` / `a` | Abre editor ou agent no worktree selecionado. |
-| `d`, depois `y` | Remove todos os worktrees da branch selecionada. A confirmação é obrigatória. |
-| `p` | Executa prune nos repositórios descobertos. |
-| `j` / `k` ou setas | Move a seleção. |
+| `Space` | Seleciona um checkout principal ou uma feature. A primeira seleção de feature marca todos os seus worktrees; os próximos toques alternam só a linha focada. Checkouts detached não são selecionáveis. |
+| `Enter` | Abre a palette contextual. Em roots ela mostra `add`, `add --all`, `prune` e `update`; em features mostra `open`, `open -e`, `open -a`, `rm`, `rm --all` e `prune`, conforme a seleção e a configuração. Escolher `add` abre o prompt de branch. |
+| `j` / `k` ou setas | Move o foco da lista ou da palette. |
+| `Esc` | Fecha a palette sem limpar a seleção. |
 | `q` | Sai. |
 
-Ao criar worktrees pela TUI, o `gwt` atualiza a branch base dos repositórios
-selecionados antes da criação. A tela inicial usa o estado local para abrir
-imediatamente, sem esperar pela rede.
+A TUI mantém a seleção e a escolha contextual de comando antes de executar
+operações de Git.
 
 ## Configuração
 

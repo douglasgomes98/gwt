@@ -21,6 +21,8 @@ type Model struct {
 	feature  string
 	palette  bool
 	pCursor  int
+	input    bool
+	branch   string
 	message  string
 	detailed bool
 }
@@ -98,6 +100,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.input {
+			return m.typeBranch(x)
+		}
 		if m.palette {
 			switch x.String() {
 			case "esc":
@@ -111,6 +116,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.pCursor--
 				}
 			case "enter":
+				if actions := m.availableActions(); m.pCursor < len(actions) && (actions[m.pCursor] == actionAdd || actions[m.pCursor] == actionAddAll) {
+					m.input = true
+					m.branch = ""
+					m.message = "branch: "
+				}
 				m.palette = false
 			}
 			return m, nil
@@ -156,6 +166,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch s := k.String(); s {
+	case "esc", "enter":
+		m.input = false
+	case "backspace":
+		if len(m.branch) > 0 {
+			m.branch = m.branch[:len(m.branch)-1]
+		}
+	default:
+		if len(s) == 1 {
+			m.branch += s
+		}
+	}
+	return m, nil
+}
+
 func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
@@ -190,6 +216,9 @@ func (m Model) View() tea.View {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
 	b.WriteString("\n" + style("2", m.message))
+	if m.input {
+		b.WriteString(m.branch)
+	}
 	if m.palette {
 		b.WriteString("\n\n" + style("1", "commands") + "\n")
 		for i, action := range m.availableActions() {
@@ -218,7 +247,7 @@ func plural(n int) string {
 }
 
 func (m Model) isProject(item worktree.Item) bool {
-	return item.Primary && item.Branch == m.baseBranch()
+	return item.Primary && !item.Detached && item.Branch == m.baseBranch()
 }
 
 func (m Model) baseBranch() string {

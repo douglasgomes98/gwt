@@ -111,6 +111,24 @@ func TestPaletteNavigationAndEscapePreserveSelection(t *testing.T) {
 	}
 }
 
+func TestPaletteAddStartsBranchInputWithoutMutation(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m = press(m, "space")
+	m = press(m, "enter")
+	m = press(m, "enter")
+	if m.palette || !m.input || m.branch != "" || m.message != "branch: " {
+		t.Fatalf("add state: %#v", m)
+	}
+}
+
+func TestDetachedPrimaryRootCannotBeSelected(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Detached: true}})
+	m = press(m, "space")
+	if len(m.selected) != 0 || len(m.selectedRoots()) != 0 {
+		t.Fatal("detached primary root selected")
+	}
+}
+
 func TestDirectActionShortcutsDoNothing(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
 	m = press(m, "space")
