@@ -149,6 +149,13 @@ func Add(repo, branch, base string, c config.Config) (string, error) {
 	if strings.TrimSpace(branch) == "" {
 		return "", fmt.Errorf("branch is required")
 	}
+	items, err := ListFast(repo)
+	if err != nil {
+		return "", err
+	}
+	if len(items) > 0 && items[0].Detached {
+		return "", fmt.Errorf("refusing to add from detached primary checkout")
+	}
 	path := Path(repo, branch, c)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return "", err
@@ -157,7 +164,7 @@ func Add(repo, branch, base string, c config.Config) (string, error) {
 		_, err := git.Run(repo, "worktree", "add", path, branch)
 		return path, err
 	}
-	_, err := git.Run(repo, "worktree", "add", "-b", branch, path, base)
+	_, err = git.Run(repo, "worktree", "add", "-b", branch, path, base)
 	return path, err
 }
 

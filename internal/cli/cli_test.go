@@ -202,6 +202,19 @@ func TestRemoveAllRequiresAtLeastOneMatch(t *testing.T) {
 	}
 }
 
+func TestAddRejectsDetachedPrimary(t *testing.T) {
+	dir := testRepo(t)
+	cmd := exec.Command("git", "checkout", "--detach")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "inside", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1"}); err == nil || !strings.Contains(err.Error(), "detached") {
+		t.Fatalf("add error: %v", err)
+	}
+}
+
 func TestUpdateFetchesCleanBaseRoot(t *testing.T) {
 	dir := testRepo(t)
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})

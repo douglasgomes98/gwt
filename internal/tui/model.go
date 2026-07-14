@@ -159,6 +159,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch x.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "esc":
+			m.clearSelection()
 		case "down", "j":
 			if m.cursor < len(m.items)-1 {
 				m.cursor++

@@ -50,6 +50,28 @@ func TestFeatureSelectionRequiresEscapeBeforeChangingGroups(t *testing.T) {
 	}
 }
 
+func TestEscapeClearsFeatureSelectionBeforeSelectingAnotherFeature(t *testing.T) {
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: "/api", Primary: true},
+		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+		{Repo: "api", Branch: "AG-2", Path: "/api.AG-2"},
+	})
+	m.cursor = 1
+	m = press(m, "space")
+	m = press(m, "esc")
+	m.cursor = 2
+	m = press(m, "space")
+	if m.feature != "AG-2" || m.selected["/api.AG-1"] || !m.selected["/api.AG-2"] {
+		t.Fatalf("escape did not clear feature: %#v", m)
+	}
+	m = press(m, "esc")
+	m.cursor = 0
+	m = press(m, "space")
+	if m.feature != "" || !m.selected["/api"] {
+		t.Fatalf("escape did not permit root selection: %#v", m)
+	}
+}
+
 func TestFeatureSelectionClearsWhenLastItemIsDeselected(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
 	m = press(m, "space")

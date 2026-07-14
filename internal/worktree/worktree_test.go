@@ -218,6 +218,17 @@ func TestRepositoryBoundariesAndExistingBranch(t *testing.T) {
 	}
 }
 
+func TestAddRejectsDetachedPrimaryBeforeCreatingLayout(t *testing.T) {
+	r := repo(t)
+	git(t, r, "checkout", "--detach")
+	if _, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "inside"}); err == nil || !strings.Contains(err.Error(), "detached") {
+		t.Fatalf("add error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(r, ".worktrees")); !os.IsNotExist(err) {
+		t.Fatalf("layout was created: %v", err)
+	}
+}
+
 func TestUpdateRejectsDirtyBeforeFetch(t *testing.T) {
 	r := repo(t)
 	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0644); err != nil {
