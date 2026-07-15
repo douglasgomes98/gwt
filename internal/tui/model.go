@@ -538,7 +538,9 @@ func (m Model) View() tea.View {
 	} else if !m.input && !m.confirm && len(m.availableActions()) > 0 {
 		b.WriteString("\n" + keyHint("enter", "commands", "1;38;5;114", "0") + "  " + keyHint("q", "quit", "2", "2"))
 	}
-	return tea.NewView(b.String())
+	view := tea.NewView(b.String())
+	view.AltScreen = true
+	return view
 }
 
 func displayPath(path string) string { return filepath.Base(path) }

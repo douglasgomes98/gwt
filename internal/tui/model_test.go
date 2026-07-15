@@ -211,6 +211,13 @@ func TestViewUsesSemanticCheckoutColors(t *testing.T) {
 	}
 }
 
+func TestViewUsesAlternateScreen(t *testing.T) {
+	m := modelWith(nil)
+	if !m.View().AltScreen {
+		t.Fatal("TUI must render in the alternate screen")
+	}
+}
+
 func TestDiscardActionRequiresConfirmation(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "guru", Branch: "feature", Path: "/guru", Primary: true}})
 	m = press(m, "space")
