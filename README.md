@@ -172,7 +172,7 @@ for the release. Before the first release, create the public
 that tap.
 
 ```sh
-make deps
+make deps      # downloads Go and release-tool dependencies
 make lint
 make test
 make build
