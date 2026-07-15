@@ -57,6 +57,12 @@ gwt rm AG-123 --all
 
 # atualiza o checkout principal do repositório atual
 gwt update
+
+# volta o checkout principal para a branch base
+gwt checkout-base
+
+# descarta todas as mudanças locais do checkout principal
+gwt discard
 ```
 
 `gwt open` não consegue mudar o diretório do shell que o chamou. Por isso ele
@@ -73,6 +79,8 @@ abre um subshell no worktree; ao sair, você volta ao diretório anterior.
 | `gwt list` | Lista os worktrees do repositório atual. |
 | `gwt prune` | Executa `git worktree prune` nos repositórios descobertos. |
 | `gwt update` | Atualiza o checkout principal limpo, na branch base, do repositório atual. |
+| `gwt checkout-base` | Faz checkout da branch base no checkout principal limpo do repositório atual. |
+| `gwt discard` | Descarta todas as mudanças locais do checkout principal: rastreadas, não rastreadas e ignoradas. |
 | `gwt help` | Mostra a ajuda da CLI. |
 | `gwt version` | Mostra a versão do binário. |
 
