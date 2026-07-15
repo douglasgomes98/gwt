@@ -13,7 +13,7 @@ import (
 
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v: %s", args, err, out)
@@ -23,13 +23,13 @@ func git(t *testing.T, dir string, args ...string) {
 func repo(t *testing.T) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "api")
-	if err := os.Mkdir(dir, 0755); err != nil {
+	if err := os.Mkdir(dir, 0750); err != nil {
 		t.Fatal(err)
 	}
 	git(t, dir, "init", "-b", "main")
 	git(t, dir, "config", "user.email", "test@example.com")
 	git(t, dir, "config", "user.name", "Test")
-	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("ok"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	git(t, dir, "add", ".")
@@ -46,7 +46,7 @@ func remoteRepos(t *testing.T) (string, string) {
 	git(t, dir, "clone", remote, root)
 	git(t, root, "config", "user.email", "test@example.com")
 	git(t, root, "config", "user.name", "Test")
-	if err := os.WriteFile(filepath.Join(root, "README"), []byte("ok"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "README"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	git(t, root, "add", ".")
@@ -137,7 +137,7 @@ func TestListAndRepositoryHelpers(t *testing.T) {
 	if _, err := worktree.ListFast(t.TempDir()); err == nil {
 		t.Fatal("expected non-repository error")
 	}
-	if err := os.WriteFile(filepath.Join(r, "README"), []byte("changed"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("changed"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	items, err := worktree.List(r)
@@ -195,7 +195,7 @@ func TestRepositoryBoundariesAndExistingBranch(t *testing.T) {
 	}
 	r := repo(t)
 	sibling := filepath.Join(filepath.Dir(r), "web")
-	if err := os.Mkdir(sibling, 0755); err != nil {
+	if err := os.Mkdir(sibling, 0750); err != nil {
 		t.Fatal(err)
 	}
 	git(t, sibling, "init", "-b", "main")
@@ -231,7 +231,7 @@ func TestAddRejectsDetachedPrimaryBeforeCreatingLayout(t *testing.T) {
 
 func TestUpdateRejectsDirtyBeforeFetch(t *testing.T) {
 	r := repo(t)
-	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := worktree.Update(r, "main"); err == nil || strings.Contains(err.Error(), "fetch") {
@@ -250,7 +250,7 @@ func TestUpdateRejectsNonBaseBranchBeforeFetch(t *testing.T) {
 func TestCheckoutBaseRejectsDirtyRoot(t *testing.T) {
 	r := repo(t)
 	git(t, r, "checkout", "-b", "feature")
-	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := worktree.CheckoutBase(r, "main"); err == nil || !strings.Contains(err.Error(), "uncommitted changes") {
@@ -287,16 +287,16 @@ func TestRootManagementRejectsDetachedRoot(t *testing.T) {
 
 func TestDiscardResetsAndCleansAllChanges(t *testing.T) {
 	r := repo(t)
-	if err := os.WriteFile(filepath.Join(r, "README"), []byte("changed"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("changed"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(r, "untracked"), []byte("remove"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(r, "untracked"), []byte("remove"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := worktree.Discard(r); err != nil {
 		t.Fatal(err)
 	}
-	readme, err := os.ReadFile(filepath.Join(r, "README"))
+	readme, err := os.ReadFile(filepath.Join(r, "README")) // #nosec G304 -- test reads its own fixed fixture path.
 	if err != nil || string(readme) != "ok" {
 		t.Fatalf("README: %q, %v", readme, err)
 	}
@@ -308,7 +308,7 @@ func TestDiscardResetsAndCleansAllChanges(t *testing.T) {
 func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
 	t.Run("fast forward", func(t *testing.T) {
 		root, peer := remoteRepos(t)
-		if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0600); err != nil {
 			t.Fatal(err)
 		}
 		git(t, peer, "add", ".")
@@ -323,13 +323,13 @@ func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
 	})
 	t.Run("diverged history", func(t *testing.T) {
 		root, peer := remoteRepos(t)
-		if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0600); err != nil {
 			t.Fatal(err)
 		}
 		git(t, peer, "add", ".")
 		git(t, peer, "commit", "-m", "peer")
 		git(t, peer, "push")
-		if err := os.WriteFile(filepath.Join(root, "root"), []byte("root"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(root, "root"), []byte("root"), 0600); err != nil {
 			t.Fatal(err)
 		}
 		git(t, root, "add", ".")

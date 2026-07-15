@@ -22,21 +22,21 @@ func testRepo(t *testing.T) string {
 
 func initRepo(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.Mkdir(dir, 0755); err != nil {
+	if err := os.Mkdir(dir, 0750); err != nil {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "test@example.com"}, {"config", "user.name", "Test"}} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("ok"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("ok"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "init"}} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
@@ -238,7 +238,7 @@ func TestUpdateFetchesCleanBaseRoot(t *testing.T) {
 
 func TestUpdateRejectsDirtyRootBeforeFetch(t *testing.T) {
 	dir := testRepo(t)
-	if err := os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})
@@ -273,13 +273,13 @@ func TestCheckoutBaseAndDiscardCommands(t *testing.T) {
 	if err := a.Run([]string{"checkout-base"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("changed"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("changed"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.Run([]string{"discard"}); err != nil {
 		t.Fatal(err)
 	}
-	readme, err := os.ReadFile(filepath.Join(dir, "README"))
+	readme, err := os.ReadFile(filepath.Join(dir, "README")) // #nosec G304 -- test reads its own fixed fixture path.
 	if err != nil || string(readme) != "ok" {
 		t.Fatalf("README: %q, %v", readme, err)
 	}

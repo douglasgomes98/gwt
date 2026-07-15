@@ -7,7 +7,7 @@ import (
 )
 
 func Run(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", args...) // #nosec G204 -- all callers construct Git subcommands from application inputs.
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

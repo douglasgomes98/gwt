@@ -130,7 +130,7 @@ func (a App) add(args []string) error {
 	if len(values) == 2 {
 		base = values[1]
 	}
-	repos := []string{}
+	var repos []string
 	if flags["--all"] {
 		repos, err = worktree.Repos(a.Dir)
 		if err != nil {
@@ -151,7 +151,9 @@ func (a App) add(args []string) error {
 			}
 			return err
 		}
-		fmt.Fprintln(a.Out, path)
+		if _, err := fmt.Fprintln(a.Out, path); err != nil {
+			return err
+		}
 		if flags["-e"] {
 			return runAt(a.Config.Editor, path)
 		}
@@ -258,9 +260,13 @@ func (a App) list(args []string) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(a.Out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "PATH\tBRANCH\tSTATUS")
+	if _, err := fmt.Fprintln(tw, "PATH\tBRANCH\tSTATUS"); err != nil {
+		return err
+	}
 	for _, x := range items {
-		fmt.Fprintf(tw, "%s\t%s\t%s\n", x.Path, displayBranch(x), worktree.Status(x))
+		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\n", x.Path, displayBranch(x), worktree.Status(x)); err != nil {
+			return err
+		}
 	}
 	return tw.Flush()
 }
@@ -352,7 +358,7 @@ func runAt(command, dir string) error {
 		return fmt.Errorf("command is not configured")
 	}
 	parts := strings.Fields(command)
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := exec.Command(parts[0], parts[1:]...) // #nosec G204,G702 -- command comes from explicit user configuration.
 	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()

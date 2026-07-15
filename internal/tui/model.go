@@ -107,136 +107,174 @@ func (m Model) load(detailed bool) tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch x := msg.(type) {
 	case operationResult:
-		m.palette, m.confirm, m.input = false, false, false
-		m.pending = ""
-		m.busy, m.spinner = "", 0
-		m.clearSelection()
-		if x.err != nil {
-			m.result = x.err.Error()
-		} else {
-			m.result = x.message
-		}
-		if x.reload {
-			m.loadID++
-			return m, m.reload()
-		}
-		return m, nil
+		return m.handleOperationResult(x)
 	case spinnerTick:
-		if m.busy == "" {
-			return m, nil
-		}
-		m.spinner = (m.spinner + 1) % len(spinnerFrames)
-		return m, m.nextSpinner()
+		return m.handleSpinnerTick()
 	case loaded:
-		if x.loadID != m.loadID {
-			return m, nil
-		}
-		if m.detailed && !x.detailed {
-			return m, nil
-		}
-		if x.err != nil {
-			if !x.detailed || !m.detailed {
-				m.message = x.err.Error()
-			}
-			return m, nil
-		}
-		m.items = x.items
-		m.detailed = x.detailed
-		m.message = fmt.Sprintf("%d worktrees", len(m.items))
-		if !m.detailed {
-			m.message += " (checking status…)"
-		}
-		return m, nil
+		return m.handleLoaded(x), nil
 	case tea.PasteMsg:
-		if m.input {
-			m.branch += x.Content
-		}
-		return m, nil
+		return m.handlePaste(x), nil
 	case tea.KeyPressMsg:
-		m.result = ""
-		if m.confirm {
-			switch x.String() {
-			case "esc", "n":
-				m.confirm = false
-			case "enter", "y":
-				m.confirm = false
-				m, tick := m.start(m.pending)
-				if m.pending == actionDiscard {
-					return m, tea.Batch(tick, m.discardSelectedRoots())
-				}
-				return m, tea.Batch(tick, m.removeSelected())
-			}
-			return m, nil
+		return m.handleKeyPress(x)
+	}
+	return m, nil
+}
+
+func (m Model) handleOperationResult(result operationResult) (Model, tea.Cmd) {
+	m.palette, m.confirm, m.input = false, false, false
+	m.pending, m.busy, m.spinner = "", "", 0
+	m.clearSelection()
+	if result.err != nil {
+		m.result = result.err.Error()
+	} else {
+		m.result = result.message
+	}
+	if result.reload {
+		m.loadID++
+		return m, m.reload()
+	}
+	return m, nil
+}
+
+func (m Model) handleSpinnerTick() (Model, tea.Cmd) {
+	if m.busy == "" {
+		return m, nil
+	}
+	m.spinner = (m.spinner + 1) % len(spinnerFrames)
+	return m, m.nextSpinner()
+}
+
+func (m Model) handleLoaded(result loaded) Model {
+	if result.loadID != m.loadID {
+		return m
+	}
+	if m.detailed && !result.detailed {
+		return m
+	}
+	if result.err != nil {
+		if !result.detailed || !m.detailed {
+			m.message = result.err.Error()
 		}
-		if m.input {
-			return m.typeBranch(x)
+		return m
+	}
+	m.items, m.detailed = result.items, result.detailed
+	m.message = fmt.Sprintf("%d worktrees", len(m.items))
+	if !m.detailed {
+		m.message += " (checking status…)"
+	}
+	return m
+}
+
+func (m Model) handlePaste(msg tea.PasteMsg) Model {
+	if m.input {
+		m.branch += msg.Content
+	}
+	return m
+}
+
+func (m Model) handleKeyPress(key tea.KeyPressMsg) (Model, tea.Cmd) {
+	m.result = ""
+	if m.confirm {
+		return m.handleConfirmation(key)
+	}
+	if m.input {
+		return m.typeBranch(key)
+	}
+	if m.palette {
+		return m.handlePalette(key)
+	}
+	return m.handleListNavigation(key)
+}
+
+func (m Model) handleConfirmation(key tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch key.String() {
+	case "esc", "n":
+		m.confirm = false
+	case "enter", "y":
+		m.confirm = false
+		m, tick := m.start(m.pending)
+		if m.pending == actionDiscard {
+			return m, tea.Batch(tick, m.discardSelectedRoots())
 		}
-		if m.palette {
-			switch x.String() {
-			case "esc":
-				m.palette = false
-			case "down", "j":
-				if m.pCursor < len(m.availableActions())-1 {
-					m.pCursor++
-				}
-			case "up", "k":
-				if m.pCursor > 0 {
-					m.pCursor--
-				}
-			case "enter":
-				if actions := m.availableActions(); m.pCursor < len(actions) {
-					return m.execute(actions[m.pCursor])
-				}
-			}
-			return m, nil
+		return m, tea.Batch(tick, m.removeSelected())
+	}
+	return m, nil
+}
+
+func (m Model) handlePalette(key tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch key.String() {
+	case "esc":
+		m.palette = false
+	case "down", "j":
+		if m.pCursor < len(m.availableActions())-1 {
+			m.pCursor++
 		}
-		switch x.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "esc":
-			m.clearSelection()
-		case "down", "j":
-			if m.cursor < len(m.items)-1 {
-				m.cursor++
-			}
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case " ", "space":
-			if len(m.items) > 0 {
-				item := m.items[m.cursor]
-				if m.isProject(item) {
-					m.clearFeature()
-					m.selected[item.Path] = !m.selected[item.Path]
-				} else if !item.Detached {
-					if m.feature == "" {
-						m.feature = item.Branch
-						m.clearRoots()
-						for _, candidate := range m.items {
-							if candidate.Branch == item.Branch && !candidate.Detached {
-								m.selected[candidate.Path] = true
-							}
-						}
-					} else if m.feature == item.Branch {
-						m.selected[item.Path] = !m.selected[item.Path]
-						if len(m.selectedFeatureItems()) == 0 {
-							m.clearFeature()
-						}
-					}
-				}
-			}
-		case "enter":
-			if len(m.availableActions()) > 0 {
-				m.palette = true
-				m.pCursor = 0
-			}
+	case "up", "k":
+		if m.pCursor > 0 {
+			m.pCursor--
+		}
+	case "enter":
+		if actions := m.availableActions(); m.pCursor < len(actions) {
+			return m.execute(actions[m.pCursor])
 		}
 	}
 	return m, nil
 }
 
-func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleListNavigation(key tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch key.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.clearSelection()
+	case "down", "j":
+		if m.cursor < len(m.items)-1 {
+			m.cursor++
+		}
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case " ", "space":
+		m.toggleSelection()
+	case "enter":
+		if len(m.availableActions()) > 0 {
+			m.palette, m.pCursor = true, 0
+		}
+	}
+	return m, nil
+}
+
+func (m *Model) toggleSelection() {
+	if len(m.items) == 0 {
+		return
+	}
+	item := m.items[m.cursor]
+	if m.isProject(item) {
+		m.clearFeature()
+		m.selected[item.Path] = !m.selected[item.Path]
+		return
+	}
+	if item.Detached || (m.feature != "" && m.feature != item.Branch) {
+		return
+	}
+	if m.feature == "" {
+		m.feature = item.Branch
+		m.clearRoots()
+		for _, candidate := range m.items {
+			if candidate.Branch == item.Branch && !candidate.Detached {
+				m.selected[candidate.Path] = true
+			}
+		}
+		return
+	}
+	m.selected[item.Path] = !m.selected[item.Path]
+	if len(m.selectedFeatureItems()) == 0 {
+		m.clearFeature()
+	}
+}
+
+func (m Model) typeBranch(k tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch s := k.String(); s {
 	case "esc":
 		m.input = false
@@ -431,7 +469,7 @@ func runAt(command, dir string) error {
 		return fmt.Errorf("command is not configured")
 	}
 	parts := strings.Fields(command)
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := exec.Command(parts[0], parts[1:]...) // #nosec G204,G702 -- command comes from explicit user configuration.
 	cmd.Dir, cmd.Stdin, cmd.Stdout, cmd.Stderr = dir, os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }
@@ -447,6 +485,14 @@ func openShell(dir string) error {
 func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
+	m.renderRows(&b)
+	m.renderStatus(&b)
+	m.renderConfirmation(&b)
+	m.renderPalette(&b)
+	return tea.NewView(b.String())
+}
+
+func (m Model) renderRows(b *strings.Builder) {
 	groups := map[string][]int{}
 	var branches []string
 	var roots []int
@@ -464,46 +510,50 @@ func (m Model) View() tea.View {
 		}
 		groups[branch] = append(groups[branch], i)
 	}
-	renderRows := func(rows []int) {
-		for _, i := range rows {
-			item := m.items[i]
-			mark := " "
-			radio := style("2", "○")
-			selected := m.selected[item.Path]
-			if selected {
-				radio = style("1;38;5;114", "◉")
-			}
-			if i == m.cursor {
-				mark = "›"
-			}
-			nameStyle := "1"
-			if !item.Primary {
-				nameStyle = "1;38;5;81"
-			}
-			repo := style(nameStyle, fmt.Sprintf("%-18s", item.Repo))
-			path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
-			row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
-			if selected {
-				row = highlight(row)
-			}
-			b.WriteString(row + "\n")
-		}
-	}
 	for _, branch := range branches {
 		header := branch + "  " + style("2", worktreeCount(len(groups[branch])))
 		if m.feature != "" && branch == m.feature {
 			header = style("1;38;5;141", branch) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(len(m.selectedFeatureItems()))))
 		}
 		b.WriteString(header + "\n")
-		renderRows(groups[branch])
+		m.renderItemRows(b, groups[branch])
 	}
 	if len(roots) > 0 {
 		b.WriteString("roots  " + style("2", rootCount(len(roots))) + "\n")
-		renderRows(roots)
+		m.renderItemRows(b, roots)
 	}
 	if len(m.items) == 0 {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
 	}
+}
+
+func (m Model) renderItemRows(b *strings.Builder, rows []int) {
+	for _, i := range rows {
+		item := m.items[i]
+		mark := " "
+		radio := style("2", "○")
+		selected := m.selected[item.Path]
+		if selected {
+			radio = style("1;38;5;114", "◉")
+		}
+		if i == m.cursor {
+			mark = "›"
+		}
+		nameStyle := "1"
+		if !item.Primary {
+			nameStyle = "1;38;5;81"
+		}
+		repo := style(nameStyle, fmt.Sprintf("%-18s", item.Repo))
+		path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
+		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
+		if selected {
+			row = highlight(row)
+		}
+		b.WriteString(row + "\n")
+	}
+}
+
+func (m Model) renderStatus(b *strings.Builder) {
 	status := m.message
 	if m.result != "" {
 		status = m.result
@@ -516,6 +566,9 @@ func (m Model) View() tea.View {
 		b.WriteString(m.branch)
 		b.WriteString("  " + keyHint("enter", "create", "1;38;5;114", "0") + "  " + keyHint("esc", "cancel", "2", "2"))
 	}
+}
+
+func (m Model) renderConfirmation(b *strings.Builder) {
 	if m.confirm {
 		prompt := "remove selected worktrees?"
 		promptStyle := "1;38;5;208"
@@ -525,6 +578,9 @@ func (m Model) View() tea.View {
 		}
 		b.WriteString("\n" + style(promptStyle, prompt) + "  " + keyHint("enter/y", "confirm", "1;38;5;114", "0") + "  " + keyHint("esc/n", "cancel", "2", "2"))
 	}
+}
+
+func (m Model) renderPalette(b *strings.Builder) {
 	if m.palette {
 		b.WriteString("\n\n" + style("1", "commands") + "\n")
 		for i, action := range m.availableActions() {
@@ -532,7 +588,7 @@ func (m Model) View() tea.View {
 			if i == m.pCursor {
 				mark = "›"
 			}
-			b.WriteString(fmt.Sprintf("%s %s\n", mark, actionLabel(action)))
+			b.WriteString(mark + " " + actionLabel(action) + "\n")
 		}
 		b.WriteString(keyHint("enter", "select", "1;38;5;114", "0") + "  " + keyHint("esc", "close", "2", "2"))
 	} else if !m.input && !m.confirm && len(m.availableActions()) > 0 {

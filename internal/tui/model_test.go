@@ -256,7 +256,7 @@ func TestCheckoutBaseSelectedRoots(t *testing.T) {
 func TestDiscardSelectedRoots(t *testing.T) {
 	parent := t.TempDir()
 	api := tuiTestRepo(t, parent, "api")
-	if err := os.WriteFile(filepath.Join(api, "untracked"), []byte("remove"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(api, "untracked"), []byte("remove"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: api, Primary: true}})
@@ -452,7 +452,7 @@ func TestLoadListsFeaturesBeforeRoots(t *testing.T) {
 
 func TestLoadReportsRepositoryError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "not-a-directory")
-	if err := os.WriteFile(path, nil, 0644); err != nil {
+	if err := os.WriteFile(path, nil, 0600); err != nil {
 		t.Fatal(err)
 	}
 	m := New(path, config.Config{})
@@ -638,8 +638,8 @@ func TestExecuteAndSelectionHelpersCoverContextualActions(t *testing.T) {
 }
 
 func TestViewHandlesEmptyAndColoredStates(t *testing.T) {
-	os.Unsetenv("NO_COLOR")
-	os.Unsetenv("TERM")
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "")
 	m := modelWith(nil)
 	if !strings.Contains(m.View().Content, "(no worktrees)") {
 		t.Fatal("empty state missing")
@@ -819,11 +819,11 @@ func TestUserInteractionClearsOperationResult(t *testing.T) {
 func tuiTestRepo(t *testing.T, parent, name string) string {
 	t.Helper()
 	dir := filepath.Join(parent, name)
-	if err := os.Mkdir(dir, 0755); err != nil {
+	if err := os.Mkdir(dir, 0750); err != nil {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"init", "-b", "main"}, {"config", "user.email", "test@example.com"}, {"config", "user.name", "Test"}, {"commit", "--allow-empty", "-m", "init"}} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
