@@ -464,7 +464,11 @@ func (m Model) View() tea.View {
 			if i == m.cursor {
 				mark = "›"
 			}
-			repo := style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo))
+			nameStyle := "1"
+			if !item.Primary {
+				nameStyle = "1;38;5;81"
+			}
+			repo := style(nameStyle, fmt.Sprintf("%-18s", item.Repo))
 			path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
 			row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
 			if selected {
@@ -711,13 +715,4 @@ func highlight(text string) string {
 	}
 	const background = "\033[48;5;238m"
 	return background + strings.ReplaceAll(text, "\033[0m", "\033[0m"+background) + "\033[0m"
-}
-
-func repoColor(repo string) string {
-	palette := [...]string{"38;5;75", "38;5;81", "38;5;114", "38;5;141", "38;5;215"}
-	n := 0
-	for _, r := range repo {
-		n += int(r)
-	}
-	return palette[n%len(palette)]
 }

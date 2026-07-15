@@ -99,6 +99,10 @@ The opening flags are mutually exclusive:
 | `Esc` | Closes the palette without clearing the selection. |
 | `q` | Quits. |
 
+Primary checkout names use bold default terminal text; feature worktree names
+use cyan. Status colors remain semantic: orange for local changes, green for
+ahead, and red for behind.
+
 The TUI preserves the selection and contextual command choice before running
 Git operations. During creation, removal, pruning, or updates, it displays a
 progress indicator until the operation completes.

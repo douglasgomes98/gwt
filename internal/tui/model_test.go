@@ -194,6 +194,22 @@ func TestViewGroupsPrimaryCheckoutsUnderRoots(t *testing.T) {
 	}
 }
 
+func TestViewUsesSemanticCheckoutColors(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm-256color")
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: "/api", Primary: true},
+		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+	})
+	view := m.View().Content
+	if !strings.Contains(view, "\033[1mapi               \033[0m") {
+		t.Fatalf("root is not bold default text: %q", view)
+	}
+	if !strings.Contains(view, "\033[1;38;5;81mapi               \033[0m") {
+		t.Fatalf("worktree is not bold cyan: %q", view)
+	}
+}
+
 func TestDiscardActionRequiresConfirmation(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "guru", Branch: "feature", Path: "/guru", Primary: true}})
 	m = press(m, "space")
@@ -370,10 +386,6 @@ func TestStyleAndCounts(t *testing.T) {
 	}
 	if got := itemStatus(worktree.Item{Changes: 2, Ahead: 1, Behind: 3}); got != "(2 files changed · ahead 1 · behind 3)" {
 		t.Fatalf("got %q", got)
-	}
-	os.Unsetenv("NO_COLOR")
-	if repoColor("api") == "" {
-		t.Fatal("missing repo color")
 	}
 }
 
