@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/douglasgomes/gwt/internal/config"
-	"github.com/douglasgomes/gwt/internal/worktree"
+	"github.com/douglasgomes98/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/worktree"
 )
 
 func git(t *testing.T, dir string, args ...string) {

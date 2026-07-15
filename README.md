@@ -15,6 +15,13 @@ With Go installed:
 go install github.com/douglasgomes98/gwt/cmd/gwt@latest
 ```
 
+With Homebrew:
+
+```sh
+brew tap douglasgomes98/tap
+brew install gwt
+```
+
 For local development:
 
 ```sh
@@ -155,8 +162,17 @@ in `.golangci.yml`.
 GitHub Actions runs linting, tests, and coverage checks for pull requests to
 `main` and every push to `main`.
 
+Releases are created automatically from Conventional Commit messages merged to
+`main`: `fix:` publishes a patch, `feat:` publishes a minor version, and a
+breaking-change marker publishes a major version. When using squash merge, use
+a Conventional Commit as the PR title because it becomes the commit analyzed
+for the release. Before the first release, create the public
+`douglasgomes98/homebrew-tap` repository and add a fine-grained
+`TAP_GITHUB_TOKEN` repository secret with Contents read/write permission for
+that tap.
+
 ```sh
-make deps
+make deps      # downloads Go and release-tool dependencies
 make lint
 make test
 make build

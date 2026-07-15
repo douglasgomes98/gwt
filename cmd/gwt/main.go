@@ -3,16 +3,26 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/douglasgomes/gwt/internal/cli"
-	"github.com/douglasgomes/gwt/internal/config"
-	"github.com/douglasgomes/gwt/internal/tui"
+	"github.com/douglasgomes98/gwt/internal/cli"
+	"github.com/douglasgomes98/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/tui"
 )
 
 var version = "dev"
 
+func versionFromBuildInfo(current string, info *debug.BuildInfo) string {
+	if current == "dev" && info != nil && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return current
+}
+
 func main() {
+	info, _ := debug.ReadBuildInfo()
+	version = versionFromBuildInfo(version, info)
 	args := os.Args[1:]
 	cwd, _ := os.Getwd()
 	cfg, err := config.Load(cwd)

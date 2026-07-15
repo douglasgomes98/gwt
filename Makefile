@@ -6,6 +6,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 .PHONY: deps build lint test coverage install version
 deps:
 	go mod download
+	npm ci
 build:
 	go build -buildvcs=false -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/gwt
 lint:

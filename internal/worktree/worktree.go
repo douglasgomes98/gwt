@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/douglasgomes/gwt/internal/config"
-	"github.com/douglasgomes/gwt/internal/git"
+	"github.com/douglasgomes98/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/git"
 )
 
 type Item struct {

@@ -1,0 +1,31 @@
+version: 2
+project_name: gwt
+builds:
+  - id: darwin
+    main: ./cmd/gwt
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    ldflags: [-s -w -X main.version={{ .Version }}]
+  - id: linux
+    main: ./cmd/gwt
+    goos: [linux]
+    goarch: [amd64, arm64]
+    ldflags: [-s -w -X main.version={{ .Version }}]
+  - id: windows
+    main: ./cmd/gwt
+    goos: [windows]
+    goarch: [amd64]
+    ldflags: [-s -w -X main.version={{ .Version }}]
+archives:
+  - id: darwin
+    ids: [darwin]
+  - id: linux
+    ids: [linux]
+  - id: windows
+    ids: [windows]
+    formats: [zip]
+checksum:
+  name_template: checksums.txt
+changelog:
+  filters:
+    exclude: ['^docs:', '^test:', '^ci:', '^chore:']

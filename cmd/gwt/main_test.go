@@ -6,7 +6,24 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"runtime/debug"
 )
+
+func TestVersionFromBuildInfo(t *testing.T) {
+	for _, tc := range []struct {
+		name, current, module, want string
+	}{
+		{"module version", "dev", "v0.1.0", "v0.1.0"},
+		{"local build", "dev", "(devel)", "dev"},
+		{"ldflags version", "v0.1.0", "v0.1.0", "v0.1.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := versionFromBuildInfo(tc.current, &debug.BuildInfo{Main: debug.Module{Version: tc.module}}); got != tc.want {
+				t.Fatalf("versionFromBuildInfo() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestMain(t *testing.T) {
 	if os.Getenv("GWT_MAIN_HELPER") == "1" {
