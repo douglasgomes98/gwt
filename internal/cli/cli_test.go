@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -284,7 +286,7 @@ func TestRootManagementCommandsRejectArguments(t *testing.T) {
 
 func TestCommandErrorsAndHelpers(t *testing.T) {
 	a := App{Out: &bytes.Buffer{}, Err: &bytes.Buffer{}, Dir: t.TempDir()}
-	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}} {
+	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}, {"upgrade", "extra"}} {
 		if err := a.Run(args); err == nil {
 			t.Fatalf("expected error for %v", args)
 		}
@@ -301,12 +303,56 @@ func TestCommandErrorsAndHelpers(t *testing.T) {
 	}
 }
 
+func TestUpgrade(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		executable string
+		prefix     string
+		wantName   string
+		wantArgs   []string
+		fail       bool
+	}{
+		{"go", "/tmp/gwt", "", "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}, false},
+		{"homebrew", "/tmp/homebrew/bin/gwt", "/tmp/homebrew", "brew", []string{"upgrade", "gwt"}, false},
+		{"updater failure", "/tmp/gwt", "", "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			oldExecutable, oldCommand := executable, command
+			t.Cleanup(func() { executable, command = oldExecutable, oldCommand })
+			executable = func() (string, error) { return tc.executable, nil }
+			command = func(name string, args ...string) *exec.Cmd {
+				if name == "brew" && slices.Equal(args, []string{"--prefix", "gwt"}) {
+					if tc.prefix == "" {
+						return exec.Command("false")
+					}
+					return exec.Command("sh", "-c", "printf "+tc.prefix)
+				}
+				if name == tc.wantName && slices.Equal(args, tc.wantArgs) {
+					if tc.fail {
+						return exec.Command("false")
+					}
+					return exec.Command("true")
+				}
+				t.Fatalf("command = %s %v", name, args)
+				return nil
+			}
+			err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"upgrade"})
+			if tc.fail && (err == nil || !strings.Contains(err.Error(), "upgrade")) {
+				t.Fatalf("error = %v", err)
+			}
+			if !tc.fail && err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestHelpListsCommands(t *testing.T) {
 	var out bytes.Buffer
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) {
+	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
 		t.Fatalf("unexpected help: %q", got)
 	}
 }

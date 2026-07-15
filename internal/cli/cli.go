@@ -5,11 +5,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/douglasgomes/gwt/internal/config"
 	"github.com/douglasgomes/gwt/internal/worktree"
 )
+
+var executable = os.Executable
+var command = exec.Command
 
 type App struct {
 	Out, Err io.Writer
@@ -43,6 +47,8 @@ func (a App) Run(args []string) error {
 		return a.prune(args[1:])
 	case "update":
 		return a.update(args[1:])
+	case "upgrade":
+		return a.upgrade(args[1:])
 	case "checkout-base":
 		return a.checkoutBase(args[1:])
 	case "discard":
@@ -50,6 +56,30 @@ func (a App) Run(args []string) error {
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+func (a App) upgrade(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt upgrade")
+	}
+	path, err := executable()
+	if err != nil {
+		return fmt.Errorf("find executable: %w", err)
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	prefix, err := command("brew", "--prefix", "gwt").Output()
+	name, values := "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}
+	if err == nil && strings.HasPrefix(path, strings.TrimSpace(string(prefix))+string(filepath.Separator)) {
+		name, values = "brew", []string{"upgrade", "gwt"}
+	}
+	cmd := command(name, values...)
+	cmd.Stdout, cmd.Stderr = a.Out, a.Err
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("upgrade: %w", err)
+	}
+	return nil
 }
 
 func (a App) version(args []string) error {
@@ -73,6 +103,7 @@ Commands:
   list                                 List worktrees.
   prune                                Prune stale worktrees.
   update                               Update the current root.
+  upgrade                              Upgrade gwt.
   checkout-base                        Checkout the base branch in the current root.
   discard                              Discard all local changes in the current root.
   version                              Show the version.
