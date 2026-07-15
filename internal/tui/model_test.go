@@ -109,8 +109,45 @@ func TestPaletteOnlyShowsValidCLICommands(t *testing.T) {
 	}
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
+	}
+}
+
+func TestRootPaletteHidesActionsThatCannotRun(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		items []worktree.Item
+		want  []action
+	}{
+		{
+			name:  "dirty root",
+			items: []worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true}},
+			want:  []action{actionAdd, actionPrune, actionDiscard},
+		},
+		{
+			name:  "clean non-base root",
+			items: []worktree.Item{{Repo: "api", Branch: "feature", Path: "/api", Primary: true}},
+			want:  []action{actionAdd, actionPrune, actionCheckoutBase},
+		},
+		{
+			name: "mixed roots",
+			items: []worktree.Item{
+				{Repo: "api", Branch: "main", Path: "/api", Primary: true},
+				{Repo: "web", Branch: "main", Path: "/web", Primary: true, Dirty: true},
+			},
+			want: []action{actionAddAll, actionPrune, actionDiscard},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := modelWith(tt.items)
+			for _, item := range tt.items {
+				m.selected[item.Path] = true
+			}
+			if got := m.availableActions(); !slices.Equal(got, tt.want) {
+				t.Fatalf("actions: got %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -135,7 +172,7 @@ func TestMultipleRootsAndFeaturesUseBatchCommands(t *testing.T) {
 	m = press(m, "space")
 	m.cursor = 1
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAddAll, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAddAll, actionPrune, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
 	}
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.A"}, {Repo: "web", Branch: "AG-1", Path: "/web.A"}})

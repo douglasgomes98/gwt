@@ -94,7 +94,7 @@ The opening flags are mutually exclusive:
 | Key | Action |
 | --- | --- |
 | `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
-| `Enter` | Opens the contextual palette. On roots it shows `add`, `add --all`, `prune`, `update`, `checkout-base`, and `discard`; on features it shows `open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`, according to selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots. |
+| `Enter` | Opens the contextual palette. Root actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots. |
 | `j` / `k` or arrows | Moves focus in the list or palette. |
 | `Esc` | Closes the palette without clearing the selection. |
 | `q` | Quits. |

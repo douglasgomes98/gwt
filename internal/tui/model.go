@@ -642,10 +642,27 @@ func (m Model) selectedFeatureItems() []worktree.Item {
 
 func (m Model) availableActions() []action {
 	if roots := m.selectedRoots(); len(roots) > 0 {
-		if len(roots) == 1 {
-			return []action{actionAdd, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}
+		add := actionAdd
+		if len(roots) > 1 {
+			add = actionAddAll
 		}
-		return []action{actionAddAll, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}
+		actions := []action{add, actionPrune}
+		allClean, allOnBase, anyDirty := true, true, false
+		for _, root := range roots {
+			allClean = allClean && !root.Dirty
+			allOnBase = allOnBase && root.Branch == m.baseBranch()
+			anyDirty = anyDirty || root.Dirty
+		}
+		if allClean && allOnBase {
+			actions = append(actions, actionUpdate)
+		}
+		if allClean {
+			actions = append(actions, actionCheckoutBase)
+		}
+		if anyDirty {
+			actions = append(actions, actionDiscard)
+		}
+		return actions
 	}
 	items := m.selectedFeatureItems()
 	if len(items) == 0 {
