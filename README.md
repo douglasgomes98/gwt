@@ -139,7 +139,15 @@ not want it to appear as untracked content in the primary checkout.
 
 ## Development
 
+Install GolangCI-Lint v2 before running the lint target. Its committed policy is
+in `.golangci.yml`.
+
+GitHub Actions runs linting, tests, and coverage checks for pull requests to
+`main` and every push to `main`.
+
 ```sh
+make deps
+make lint
 make test
 make build
 make install

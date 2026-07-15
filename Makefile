@@ -3,9 +3,13 @@ BIN := bin/$(BINARY)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test coverage install version
+.PHONY: deps build lint test coverage install version
+deps:
+	go mod download
 build:
 	go build -buildvcs=false -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/gwt
+lint:
+	GOCACHE="$${GOCACHE:-$${TMPDIR:-/tmp}/gwt-go-build}" GOLANGCI_LINT_CACHE="$${GOLANGCI_LINT_CACHE:-$${TMPDIR:-/tmp}/gwt-golangci-lint}" golangci-lint run ./...
 test:
 	go vet ./...
 	go test ./...

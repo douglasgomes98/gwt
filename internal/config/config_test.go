@@ -13,7 +13,7 @@ func TestLoadDefaultsAndOptionalCommands(t *testing.T) {
 	if err != nil || got != (Config{Layout: "sibling", BaseBranch: "main", Editor: "code", Agent: "claude"}) {
 		t.Fatalf("defaults: %+v %v", got, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte("editor: ''\nagent: ''\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte("editor: ''\nagent: ''\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	got, err = Load(dir)
@@ -24,7 +24,7 @@ func TestLoadDefaultsAndOptionalCommands(t *testing.T) {
 
 func TestLoadDefaultsForEmptyLocalConfig(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), nil, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), nil, 0600); err != nil {
 		t.Fatal(err)
 	}
 	got, err := Load(dir)
@@ -40,7 +40,7 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 		"unknown: value\n", "layout: [inside]\n", "layout: [\n",
 	} {
 		dir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(text), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(text), 0600); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := Load(dir); err == nil {
@@ -52,7 +52,7 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 func TestLoadValidationErrorIncludesConfigPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gwt.yml")
-	if err := os.WriteFile(path, []byte("layout: unknown\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("layout: unknown\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := Load(dir)
@@ -68,7 +68,7 @@ func TestLoadRejectsSecondDocument(t *testing.T) {
 		"layout: sibling\n---\nlayout: [inside]\n",
 	} {
 		dir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(text), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(text), 0600); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := Load(dir); err == nil {
@@ -80,7 +80,7 @@ func TestLoadRejectsSecondDocument(t *testing.T) {
 func TestLoadRejectsNullFields(t *testing.T) {
 	for _, field := range []string{"layout", "baseBranch", "editor", "agent"} {
 		dir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(field+": null\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(field+": null\n"), 0600); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := Load(dir); err == nil {
@@ -92,7 +92,7 @@ func TestLoadRejectsNullFields(t *testing.T) {
 func TestLoadRejectsTopLevelNullConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gwt.yml")
-	if err := os.WriteFile(path, []byte("null\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("null\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := Load(dir)

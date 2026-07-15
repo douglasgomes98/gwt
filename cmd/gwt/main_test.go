@@ -30,11 +30,11 @@ func TestMain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			if tc.file != "" {
-				if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(tc.file), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte(tc.file), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
-			cmd := exec.Command(os.Args[0], "-test.run=TestMain$")
+			cmd := exec.Command(os.Args[0], "-test.run=TestMain$") // #nosec G204,G702 -- invokes this test binary's fixed helper.
 			cmd.Env = append(os.Environ(), "GWT_MAIN_HELPER=1", "GWT_MAIN_DIR="+dir, "GWT_MAIN_ARG="+tc.arg)
 			out, err := cmd.CombinedOutput()
 			if tc.name == "version" {

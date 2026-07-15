@@ -19,6 +19,8 @@ assets or a public package unless the command genuinely needs one.
 Run these from the repository root:
 
 ```sh
+make deps       # download Go module dependencies
+make lint       # run the GolangCI-Lint quality gate
 make test       # go vet ./... followed by go test ./...
 make build      # build bin/gwt with version metadata
 make coverage   # write coverage.out and print function coverage
@@ -44,8 +46,8 @@ Tests use Go's built-in `testing` package. Cover all observable behavior and
 error paths, especially Git operations and destructive-worktree safeguards.
 Use `t.TempDir()` and temporary Git repositories rather than local checkout
 paths; use `t.Setenv()` for environment-dependent behavior. Keep project
-coverage above 90%; run `make test` and `make coverage` before opening a pull
-request.
+coverage above 90%; run `make lint`, `make test`, and `make coverage` before
+opening a pull request.
 
 ## Documentation
 
@@ -59,7 +61,9 @@ worktree`, `feat(cli): add prune command`, or `refactor(worktree): simplify scan
 Keep commits focused. Pull requests should state the user-visible change, link
 the relevant issue when available, include test results, and attach a terminal
 capture for TUI-facing changes. Call out any change that can remove worktrees
-or alter Git commands.
+or alter Git commands. Create every change in an isolated worktree on a
+dedicated branch; never push directly to `main`, and merge through a pull
+request.
 
 ## Configuration & Safety
 

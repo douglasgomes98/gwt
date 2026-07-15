@@ -88,7 +88,9 @@ func List(repo string) ([]Item, error) {
 		}
 		counts, err := git.Run(items[i].Path, "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
 		if err == nil {
-			fmt.Sscanf(counts, "%d %d", &items[i].Behind, &items[i].Ahead)
+			if _, err := fmt.Sscanf(counts, "%d %d", &items[i].Behind, &items[i].Ahead); err != nil {
+				return nil, fmt.Errorf("parse branch counts: %w", err)
+			}
 		}
 	}
 	return items, nil
@@ -157,7 +159,7 @@ func Add(repo, branch, base string, c config.Config) (string, error) {
 		return "", fmt.Errorf("refusing to add from detached primary checkout")
 	}
 	path := Path(repo, branch, c)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { // #nosec G301 -- Git requires a traversable worktree parent derived from a trusted repository path.
 		return "", err
 	}
 	if _, err := git.Run(repo, "show-ref", "--verify", "--quiet", "refs/heads/"+branch); err == nil {

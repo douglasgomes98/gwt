@@ -29,7 +29,7 @@ type fileConfig struct {
 func Load(start string) (Config, error) {
 	defaults := Config{Layout: "sibling", BaseBranch: "main", Editor: "code", Agent: "claude"}
 	for _, path := range configPaths(start) {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // #nosec G304 -- config paths are fixed to the working directory or user config directory.
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -48,7 +48,7 @@ func Load(start string) (Config, error) {
 			return Config{}, fmt.Errorf("parse config %s: %w", path, err)
 		}
 		var extra fileConfig
-		if err := dec.Decode(&extra); err != io.EOF {
+		if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
 			if err != nil {
 				return Config{}, fmt.Errorf("parse config %s: %w", path, err)
 			}
@@ -103,7 +103,7 @@ func apply(raw fileConfig, defaults Config) (Config, error) {
 		if *raw.BaseBranch == "" {
 			return Config{}, errors.New("baseBranch cannot be empty")
 		}
-		if err := exec.Command("git", "check-ref-format", "--branch", *raw.BaseBranch).Run(); err != nil {
+		if err := exec.Command("git", "check-ref-format", "--branch", *raw.BaseBranch).Run(); err != nil { // #nosec G204 -- git and arguments are fixed except the validated branch candidate.
 			return Config{}, fmt.Errorf("invalid baseBranch %q", *raw.BaseBranch)
 		}
 		config.BaseBranch = *raw.BaseBranch
