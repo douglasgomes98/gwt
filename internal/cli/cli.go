@@ -190,7 +190,7 @@ func (a App) add(args []string) error {
 			return err
 		}
 		if flags["-e"] {
-			return runAt(a.Config.Editor, path)
+			return runAt(a.Config.Editor, path, path)
 		}
 		if flags["-a"] {
 			return runAt(a.Config.Agent, path)
@@ -220,7 +220,7 @@ func (a App) open(args []string) error {
 				return fmt.Errorf("refusing to open detached worktree")
 			}
 			if flags["-e"] {
-				return runAt(a.Config.Editor, item.Path)
+				return runAt(a.Config.Editor, item.Path, item.Path)
 			}
 			if flags["-a"] {
 				return runAt(a.Config.Agent, item.Path)
@@ -388,12 +388,12 @@ func displayBranch(item worktree.Item) string {
 	}
 	return item.Branch
 }
-func runAt(command, dir string) error {
+func runAt(command, dir string, args ...string) error {
 	if command == "" {
 		return fmt.Errorf("command is not configured")
 	}
 	parts := strings.Fields(command)
-	cmd := exec.Command(parts[0], parts[1:]...) // #nosec G204,G702 -- command comes from explicit user configuration.
+	cmd := exec.Command(parts[0], append(parts[1:], args...)...) // #nosec G204,G702 -- command comes from explicit user configuration.
 	cmd.Dir = dir
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()

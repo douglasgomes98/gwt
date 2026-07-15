@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -568,45 +571,72 @@ func TestPruneAndUpdateCommandsReload(t *testing.T) {
 	}
 }
 
-func TestOpenSelectedRunsConfiguredCommandAndRejectsEmptySelection(t *testing.T) {
+func TestOpenSelectedRejectsEmptySelection(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: t.TempDir()}})
+	m.feature = "AG-1"
+	result := m.openSelected(actionOpen)().(operationResult)
+	if result.err == nil || !result.reload {
+		t.Fatalf("empty open result: %#v", result)
+	}
+}
+
+func TestOpenSelectedPausesTUIForExternalCommands(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: t.TempDir()}})
 	m.feature = "AG-1"
 	m.selected[m.items[0].Path] = true
-	m.config.Editor = "true"
-	result := m.openSelected(actionOpenEditor)().(operationResult)
-	if result.err != nil || !result.reload {
-		t.Fatalf("open result: %#v", result)
-	}
-	t.Setenv("SHELL", "true")
-	result = m.openSelected(actionOpen)().(operationResult)
-	if result.err != nil || !result.reload {
-		t.Fatalf("shell result: %#v", result)
-	}
-	m.config.Agent = "true"
-	result = m.openSelected(actionOpenAgent)().(operationResult)
-	if result.err != nil || !result.reload {
-		t.Fatalf("agent result: %#v", result)
-	}
-	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: t.TempDir(), Primary: true}})
-	m.selected[m.items[0].Path] = true
 	m.config = config.Config{Editor: "true", Agent: "true"}
-	result = m.openSelected(actionOpenEditor)().(operationResult)
-	if result.err != nil || !result.reload {
-		t.Fatalf("root editor result: %#v", result)
-	}
-	result = m.openSelected(actionOpenAgent)().(operationResult)
-	if result.err != nil || !result.reload {
-		t.Fatalf("root agent result: %#v", result)
-	}
 	t.Setenv("SHELL", "true")
-	result = m.openSelected(actionOpen)().(operationResult)
-	if result.err != nil || !result.reload {
-		t.Fatalf("root shell result: %#v", result)
+
+	for _, action := range []action{actionOpen, actionOpenEditor, actionOpenAgent} {
+		if got := fmt.Sprintf("%T", m.openSelected(action)()); got != "tea.execMsg" {
+			t.Fatalf("%s command = %s, want tea.ExecProcess command", action, got)
+		}
 	}
-	m.clearSelection()
-	result = m.openSelected(actionOpen)().(operationResult)
-	if result.err == nil || !result.reload {
-		t.Fatalf("empty open result: %#v", result)
+}
+
+type openCommandModel struct {
+	cmd tea.Cmd
+	err error
+}
+
+func (m *openCommandModel) Init() tea.Cmd { return m.cmd }
+
+func (m *openCommandModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if result, ok := msg.(operationResult); ok {
+		m.err = result.err
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *openCommandModel) View() tea.View { return tea.NewView("") }
+
+func TestOpenEditorPassesWorktreePath(t *testing.T) {
+	worktreePath := t.TempDir()
+	argumentPath := filepath.Join(t.TempDir(), "editor-argument")
+	editor := filepath.Join(t.TempDir(), "editor")
+	if err := os.WriteFile(editor, []byte("#!/bin/sh\nprintf %s \"$1\" > \"$GWT_EDITOR_ARGUMENT\"\n"), 0700); err != nil { // #nosec G306 -- test script must be executable.
+		t.Fatal(err)
+	}
+	t.Setenv("GWT_EDITOR_ARGUMENT", argumentPath)
+
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: worktreePath}})
+	m.feature = "AG-1"
+	m.selected[worktreePath] = true
+	m.config.Editor = editor
+	model := &openCommandModel{cmd: m.openSelected(actionOpenEditor)}
+	if _, err := tea.NewProgram(model, tea.WithInput(bytes.NewBuffer(nil)), tea.WithOutput(io.Discard)).Run(); err != nil {
+		t.Fatal(err)
+	}
+	if model.err != nil {
+		t.Fatalf("open editor: %v", model.err)
+	}
+	got, err := os.ReadFile(argumentPath) // #nosec G304 -- test reads its generated temporary output.
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != worktreePath {
+		t.Fatalf("editor argument = %q, want %q", got, worktreePath)
 	}
 }
 
