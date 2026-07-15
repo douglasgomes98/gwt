@@ -207,3 +207,37 @@ func Update(path, base string) error {
 	_, err = git.Run(path, "merge", "--ff-only", "origin/"+base)
 	return err
 }
+
+func CheckoutBase(path, base string) error {
+	status, err := git.Run(path, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(status) != "" {
+		return fmt.Errorf("root has uncommitted changes")
+	}
+	branch, err := git.Run(path, "branch", "--show-current")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(branch) == "" {
+		return fmt.Errorf("refusing to checkout detached root")
+	}
+	_, err = git.Run(path, "checkout", base)
+	return err
+}
+
+func Discard(path string) error {
+	branch, err := git.Run(path, "branch", "--show-current")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(branch) == "" {
+		return fmt.Errorf("refusing to discard detached root")
+	}
+	if _, err := git.Run(path, "reset", "--hard"); err != nil {
+		return err
+	}
+	_, err = git.Run(path, "clean", "-fdx")
+	return err
+}

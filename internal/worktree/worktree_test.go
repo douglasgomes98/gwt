@@ -247,6 +247,64 @@ func TestUpdateRejectsNonBaseBranchBeforeFetch(t *testing.T) {
 	}
 }
 
+func TestCheckoutBaseRejectsDirtyRoot(t *testing.T) {
+	r := repo(t)
+	git(t, r, "checkout", "-b", "feature")
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("dirty"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.CheckoutBase(r, "main"); err == nil || !strings.Contains(err.Error(), "uncommitted changes") {
+		t.Fatalf("checkout error: %v", err)
+	}
+}
+
+func TestCheckoutBaseChecksOutBase(t *testing.T) {
+	r := repo(t)
+	git(t, r, "checkout", "-b", "feature")
+	if err := worktree.CheckoutBase(r, "main"); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "branch", "--show-current")
+	cmd.Dir = r
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "main" {
+		t.Fatalf("branch: %q, %v", out, err)
+	}
+}
+
+func TestRootManagementRejectsDetachedRoot(t *testing.T) {
+	r := repo(t)
+	git(t, r, "checkout", "--detach")
+	for _, operation := range []func(string) error{
+		func(path string) error { return worktree.CheckoutBase(path, "main") },
+		worktree.Discard,
+	} {
+		if err := operation(r); err == nil || !strings.Contains(err.Error(), "detached") {
+			t.Fatalf("operation error: %v", err)
+		}
+	}
+}
+
+func TestDiscardResetsAndCleansAllChanges(t *testing.T) {
+	r := repo(t)
+	if err := os.WriteFile(filepath.Join(r, "README"), []byte("changed"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r, "untracked"), []byte("remove"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.Discard(r); err != nil {
+		t.Fatal(err)
+	}
+	readme, err := os.ReadFile(filepath.Join(r, "README"))
+	if err != nil || string(readme) != "ok" {
+		t.Fatalf("README: %q, %v", readme, err)
+	}
+	if _, err := os.Stat(filepath.Join(r, "untracked")); !os.IsNotExist(err) {
+		t.Fatalf("untracked file remained: %v", err)
+	}
+}
+
 func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
 	t.Run("fast forward", func(t *testing.T) {
 		root, peer := remoteRepos(t)

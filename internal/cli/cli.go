@@ -43,6 +43,10 @@ func (a App) Run(args []string) error {
 		return a.prune(args[1:])
 	case "update":
 		return a.update(args[1:])
+	case "checkout-base":
+		return a.checkoutBase(args[1:])
+	case "discard":
+		return a.discard(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -69,6 +73,8 @@ Commands:
   list                                 List worktrees.
   prune                                Prune stale worktrees.
   update                               Update the current root.
+  checkout-base                        Checkout the base branch in the current root.
+  discard                              Discard all local changes in the current root.
   version                              Show the version.
   help                                 Show this help.
 
@@ -248,6 +254,28 @@ func (a App) update(args []string) error {
 		return err
 	}
 	return worktree.Update(repo, a.Config.BaseBranch)
+}
+
+func (a App) checkoutBase(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt checkout-base")
+	}
+	repo, err := worktree.CurrentRepo(a.Dir)
+	if err != nil {
+		return err
+	}
+	return worktree.CheckoutBase(repo, a.Config.BaseBranch)
+}
+
+func (a App) discard(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt discard")
+	}
+	repo, err := worktree.CurrentRepo(a.Dir)
+	if err != nil {
+		return err
+	}
+	return worktree.Discard(repo)
 }
 
 func parse(args []string, allowed ...string) (map[string]bool, []string, error) {

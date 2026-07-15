@@ -250,6 +250,38 @@ func TestUpdateRejectsWrongBranchBeforeFetch(t *testing.T) {
 	}
 }
 
+func TestCheckoutBaseAndDiscardCommands(t *testing.T) {
+	dir := testRepo(t)
+	cmd := exec.Command("git", "checkout", "-b", "feature")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})
+	if err := a.Run([]string{"checkout-base"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "README"), []byte("changed"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Run([]string{"discard"}); err != nil {
+		t.Fatal(err)
+	}
+	readme, err := os.ReadFile(filepath.Join(dir, "README"))
+	if err != nil || string(readme) != "ok" {
+		t.Fatalf("README: %q, %v", readme, err)
+	}
+}
+
+func TestRootManagementCommandsRejectArguments(t *testing.T) {
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{})
+	for _, args := range [][]string{{"checkout-base", "extra"}, {"discard", "extra"}} {
+		if err := a.Run(args); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+}
+
 func TestCommandErrorsAndHelpers(t *testing.T) {
 	a := App{Out: &bytes.Buffer{}, Err: &bytes.Buffer{}, Dir: t.TempDir()}
 	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}} {

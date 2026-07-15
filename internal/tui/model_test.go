@@ -109,7 +109,7 @@ func TestPaletteOnlyShowsValidCLICommands(t *testing.T) {
 	}
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionUpdate}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
 	}
 }
@@ -119,13 +119,94 @@ func TestMultipleRootsAndFeaturesUseBatchCommands(t *testing.T) {
 	m = press(m, "space")
 	m.cursor = 1
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAddAll, actionPrune, actionUpdate}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAddAll, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
 	}
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.A"}, {Repo: "web", Branch: "AG-1", Path: "/web.A"}})
 	m = press(m, "space")
 	if got, want := m.availableActions(), []action{actionRemoveAll, actionPrune}; !slices.Equal(got, want) {
 		t.Fatalf("feature actions: %v", got)
+	}
+}
+
+func TestViewGroupsPrimaryCheckoutsUnderRoots(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := modelWith([]worktree.Item{
+		{Repo: "guru", Branch: "feature", Path: "/guru", Primary: true},
+		{Repo: "api", Branch: "feature", Path: "/api.feature"},
+	})
+	view := m.View().Content
+	if !strings.Contains(view, "roots") || strings.Index(view, "feature") > strings.Index(view, "roots") {
+		t.Fatalf("unexpected groups: %q", view)
+	}
+}
+
+func TestDiscardActionRequiresConfirmation(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "guru", Branch: "feature", Path: "/guru", Primary: true}})
+	m = press(m, "space")
+	m, _ = m.execute(actionDiscard)
+	if !m.confirm || m.pending != actionDiscard {
+		t.Fatalf("discard state: %#v", m)
+	}
+	m = press(m, "n")
+	if m.confirm {
+		t.Fatal("discard confirmation was not cancelled")
+	}
+}
+
+func TestCheckoutBaseSelectedRoots(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	cmd := exec.Command("git", "checkout", "-b", "feature")
+	cmd.Dir = api
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "feature", Path: api, Primary: true}})
+	m.selected[api] = true
+	result := m.checkoutBaseSelectedRoots()().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("checkout result: %#v", result)
+	}
+	cmd = exec.Command("git", "branch", "--show-current")
+	cmd.Dir = api
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "main" {
+		t.Fatalf("branch: %q, %v", out, err)
+	}
+}
+
+func TestDiscardSelectedRoots(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	if err := os.WriteFile(filepath.Join(api, "untracked"), []byte("remove"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: api, Primary: true}})
+	m.selected[api] = true
+	result := m.discardSelectedRoots()().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("discard result: %#v", result)
+	}
+	if _, err := os.Stat(filepath.Join(api, "untracked")); !os.IsNotExist(err) {
+		t.Fatalf("untracked file remained: %v", err)
+	}
+}
+
+func TestRootManagementActionsDispatchAndLabel(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m.selected["/api"] = true
+	m, cmd := m.execute(actionCheckoutBase)
+	if cmd == nil || m.busy != actionCheckoutBase || operationLabel(actionCheckoutBase) != "checking out base…" {
+		t.Fatalf("checkout dispatch: %#v", m)
+	}
+	m, cmd = m.execute(actionDiscard)
+	if cmd != nil || !m.confirm || m.pending != actionDiscard || operationLabel(actionDiscard) != "discarding changes…" {
+		t.Fatalf("discard dispatch: %#v", m)
+	}
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "enter"})
+	if cmd == nil || updated.(Model).busy != actionDiscard {
+		t.Fatalf("discard confirmation: %#v", updated)
 	}
 }
 

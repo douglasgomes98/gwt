@@ -57,6 +57,12 @@ gwt rm AG-123 --all
 
 # updates the current repository's primary checkout
 gwt update
+
+# checks out the base branch in the primary checkout
+gwt checkout-base
+
+# discards all local changes in the primary checkout
+gwt discard
 ```
 
 `gwt open` cannot change its calling shell's directory. It opens a subshell in
@@ -73,6 +79,8 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt list` | Lists worktrees in the current repository. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update` | Updates the current repository's clean primary checkout on the base branch. |
+| `gwt checkout-base` | Checks out the base branch in the current repository's clean primary checkout. |
+| `gwt discard` | Discards all local changes in the current repository's primary checkout: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |
 | `gwt version` | Shows the binary version. |
 
@@ -86,7 +94,7 @@ The opening flags are mutually exclusive:
 | Key | Action |
 | --- | --- |
 | `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
-| `Enter` | Opens the contextual palette. On roots it shows `add`, `add --all`, `prune`, and `update`; on features it shows `open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`, according to selection and configuration. Choosing `add` opens the branch prompt. |
+| `Enter` | Opens the contextual palette. On roots it shows `add`, `add --all`, `prune`, `update`, `checkout-base`, and `discard`; on features it shows `open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`, according to selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots. |
 | `j` / `k` or arrows | Moves focus in the list or palette. |
 | `Esc` | Closes the palette without clearing the selection. |
 | `q` | Quits. |
