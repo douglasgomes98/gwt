@@ -421,21 +421,31 @@ func (m Model) openSelected(a action) tea.Cmd {
 	if len(items) == 0 {
 		items = m.selectedRoots()
 	}
-	return func() tea.Msg {
-		if len(items) != 1 {
+	if len(items) != 1 {
+		return func() tea.Msg {
 			return operationResult{err: fmt.Errorf("select one worktree to open"), reload: true}
 		}
-		var err error
-		switch a {
-		case actionOpenEditor:
-			err = runAt(m.config.Editor, items[0].Path)
-		case actionOpenAgent:
-			err = runAt(m.config.Agent, items[0].Path)
-		default:
-			err = openShell(items[0].Path)
-		}
-		return operationResult{err: err, message: "opened " + items[0].Path, reload: true}
 	}
+	var (
+		cmd *exec.Cmd
+		err error
+	)
+	switch a {
+	case actionOpenEditor:
+		cmd, err = commandAt(m.config.Editor, items[0].Path, items[0].Path)
+	case actionOpenAgent:
+		cmd, err = commandAt(m.config.Agent, items[0].Path)
+	default:
+		cmd, err = shellCommand(items[0].Path)
+	}
+	if err != nil {
+		return func() tea.Msg {
+			return operationResult{err: err, reload: true}
+		}
+	}
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return operationResult{err: err, message: "opened " + items[0].Path, reload: true}
+	})
 }
 
 func (m Model) rootFor(item worktree.Item) (worktree.Item, bool) {
@@ -468,21 +478,39 @@ func (m Model) selectedRepoPaths() []string {
 func partial(a action, err error) error { return fmt.Errorf("%s: result may be partial: %w", a, err) }
 
 func runAt(command, dir string) error {
-	if command == "" {
-		return fmt.Errorf("command is not configured")
+	cmd, err := commandAt(command, dir)
+	if err != nil {
+		return err
 	}
-	parts := strings.Fields(command)
-	cmd := exec.Command(parts[0], parts[1:]...) // #nosec G204,G702 -- command comes from explicit user configuration.
-	cmd.Dir, cmd.Stdin, cmd.Stdout, cmd.Stderr = dir, os.Stdin, os.Stdout, os.Stderr
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }
 
+func commandAt(command, dir string, args ...string) (*exec.Cmd, error) {
+	if command == "" {
+		return nil, fmt.Errorf("command is not configured")
+	}
+	parts := strings.Fields(command)
+	cmd := exec.Command(parts[0], append(parts[1:], args...)...) // #nosec G204,G702 -- command comes from explicit user configuration.
+	cmd.Dir = dir
+	return cmd, nil
+}
+
 func openShell(dir string) error {
+	cmd, err := shellCommand(dir)
+	if err != nil {
+		return err
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+func shellCommand(dir string) (*exec.Cmd, error) {
 	sh := os.Getenv("SHELL")
 	if sh == "" {
 		sh = "/bin/sh"
 	}
-	return runAt(sh, dir)
+	return commandAt(sh, dir)
 }
 
 func (m Model) View() tea.View {

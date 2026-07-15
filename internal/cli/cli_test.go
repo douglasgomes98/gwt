@@ -358,6 +358,35 @@ func TestOpenConfiguredCommandsAndUsageErrors(t *testing.T) {
 	}
 }
 
+func TestOpenEditorPassesWorktreePath(t *testing.T) {
+	dir := testRepo(t)
+	argumentPath := filepath.Join(t.TempDir(), "editor-argument")
+	editor := filepath.Join(t.TempDir(), "editor")
+	if err := os.WriteFile(editor, []byte("#!/bin/sh\nprintf %s \"$1\" > \"$GWT_EDITOR_ARGUMENT\"\n"), 0700); err != nil { // #nosec G306 -- test script must be executable.
+		t.Fatal(err)
+	}
+	t.Setenv("GWT_EDITOR_ARGUMENT", argumentPath)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main", Editor: editor})
+	if err := a.Run([]string{"add", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(filepath.Dir(dir), filepath.Base(dir)+".AG-1")
+	if resolved, err := filepath.EvalSymlinks(want); err == nil {
+		want = resolved
+	}
+
+	if err := a.Run([]string{"open", "AG-1", "-e"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(argumentPath) // #nosec G304 -- test reads its generated temporary output.
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Fatalf("editor argument = %q, want %q", got, want)
+	}
+}
+
 func TestRemoveAllRequiresAtLeastOneMatch(t *testing.T) {
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main"})
 	if err := a.Run([]string{"rm", "missing", "--all"}); err == nil {
