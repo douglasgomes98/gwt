@@ -94,7 +94,7 @@ As flags de abertura são mutuamente exclusivas:
 | Tecla | Ação |
 | --- | --- |
 | `Space` | Seleciona um checkout principal ou uma feature. A primeira seleção de feature marca todos os seus worktrees; os próximos toques alternam só a linha focada. Checkouts detached não são selecionáveis. |
-| `Enter` | Abre a palette contextual. Em roots ela mostra `add`, `add --all`, `prune` e `update`; em features mostra `open`, `open -e`, `open -a`, `rm`, `rm --all` e `prune`, conforme a seleção e a configuração. Escolher `add` abre o prompt de branch. |
+| `Enter` | Abre a palette contextual. Em roots ela mostra `add`, `add --all`, `prune`, `update`, `checkout-base` e `discard`; em features mostra `open`, `open -e`, `open -a`, `rm`, `rm --all` e `prune`, conforme a seleção e a configuração. Escolher `add` abre o prompt de branch. `discard` pede confirmação e remove todas as mudanças locais dos roots selecionados. |
 | `j` / `k` ou setas | Move o foco da lista ou da palette. |
 | `Esc` | Fecha a palette sem limpar a seleção. |
 | `q` | Sai. |

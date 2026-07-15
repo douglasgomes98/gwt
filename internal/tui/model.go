@@ -37,15 +37,17 @@ type Model struct {
 type action string
 
 const (
-	actionAdd        action = "add"
-	actionAddAll     action = "add --all"
-	actionOpen       action = "open"
-	actionOpenEditor action = "open -e"
-	actionOpenAgent  action = "open -a"
-	actionRemove     action = "rm"
-	actionRemoveAll  action = "rm --all"
-	actionPrune      action = "prune"
-	actionUpdate     action = "update"
+	actionAdd          action = "add"
+	actionAddAll       action = "add --all"
+	actionOpen         action = "open"
+	actionOpenEditor   action = "open -e"
+	actionOpenAgent    action = "open -a"
+	actionRemove       action = "rm"
+	actionRemoveAll    action = "rm --all"
+	actionPrune        action = "prune"
+	actionUpdate       action = "update"
+	actionCheckoutBase action = "checkout-base"
+	actionDiscard      action = "discard"
 )
 
 type loaded struct {
@@ -150,6 +152,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter", "y":
 				m.confirm = false
 				m, tick := m.start(m.pending)
+				if m.pending == actionDiscard {
+					return m, tea.Batch(tick, m.discardSelectedRoots())
+				}
 				return m, tea.Batch(tick, m.removeSelected())
 			}
 			return m, nil
@@ -248,7 +253,7 @@ func (m Model) execute(a action) (Model, tea.Cmd) {
 		m.palette, m.input, m.branch = false, true, ""
 		m.message = "branch: "
 		return m, nil
-	case actionRemove, actionRemoveAll:
+	case actionRemove, actionRemoveAll, actionDiscard:
 		m.palette, m.confirm, m.pending = false, true, a
 		return m, nil
 	case actionPrune:
@@ -257,6 +262,9 @@ func (m Model) execute(a action) (Model, tea.Cmd) {
 	case actionUpdate:
 		m, tick := m.start(a)
 		return m, tea.Batch(tick, m.updateSelectedRoots())
+	case actionCheckoutBase:
+		m, tick := m.start(a)
+		return m, tea.Batch(tick, m.checkoutBaseSelectedRoots())
 	default:
 		return m, m.openSelected(a)
 	}
@@ -334,6 +342,30 @@ func (m Model) updateSelectedRoots() tea.Cmd {
 	}
 }
 
+func (m Model) checkoutBaseSelectedRoots() tea.Cmd {
+	roots := m.selectedRoots()
+	return func() tea.Msg {
+		for _, root := range roots {
+			if err := worktree.CheckoutBase(root.Path, m.baseBranch()); err != nil {
+				return operationResult{err: partial(actionCheckoutBase, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("checked out base in %d roots", len(roots)), reload: true}
+	}
+}
+
+func (m Model) discardSelectedRoots() tea.Cmd {
+	roots := m.selectedRoots()
+	return func() tea.Msg {
+		for _, root := range roots {
+			if err := worktree.Discard(root.Path); err != nil {
+				return operationResult{err: partial(actionDiscard, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("discarded changes in %d roots", len(roots)), reload: true}
+	}
+}
+
 func (m Model) openSelected(a action) tea.Cmd {
 	items := m.selectedFeatureItems()
 	return func() tea.Msg {
@@ -403,36 +435,55 @@ func openShell(dir string) error {
 func (m Model) View() tea.View {
 	var b strings.Builder
 	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
-	last := ""
+	groups := map[string][]int{}
+	var branches []string
+	var roots []int
 	for i, item := range m.items {
-		if i == 0 || item.Branch != last {
-			last = item.Branch
-			branch := item.Branch
-			if item.Detached {
-				branch = "(detached)"
+		if item.Primary {
+			roots = append(roots, i)
+			continue
+		}
+		branch := item.Branch
+		if item.Detached {
+			branch = "(detached)"
+		}
+		if _, ok := groups[branch]; !ok {
+			branches = append(branches, branch)
+		}
+		groups[branch] = append(groups[branch], i)
+	}
+	renderRows := func(rows []int) {
+		for _, i := range rows {
+			item := m.items[i]
+			mark := " "
+			radio := style("2", "○")
+			selected := m.selected[item.Path]
+			if selected {
+				radio = style("1;38;5;114", "◉")
 			}
-			header := branch + "  " + style("2", fmt.Sprintf("%d worktrees", m.groupSize(last)))
-			if m.feature != "" && last == m.feature {
-				header = style("1;38;5;141", last) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(len(m.selectedFeatureItems()))))
+			if i == m.cursor {
+				mark = "›"
 			}
-			b.WriteString(header + "\n")
+			repo := style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo))
+			path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
+			row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
+			if selected {
+				row = highlight(row)
+			}
+			b.WriteString(row + "\n")
 		}
-		mark := " "
-		radio := style("2", "○")
-		selected := m.selected[item.Path]
-		if selected {
-			radio = style("1;38;5;114", "◉")
+	}
+	for _, branch := range branches {
+		header := branch + "  " + style("2", worktreeCount(len(groups[branch])))
+		if m.feature != "" && branch == m.feature {
+			header = style("1;38;5;141", branch) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(len(m.selectedFeatureItems()))))
 		}
-		if i == m.cursor {
-			mark = "›"
-		}
-		repo := style(repoColor(item.Repo), fmt.Sprintf("%-18s", item.Repo))
-		path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
-		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
-		if selected {
-			row = highlight(row)
-		}
-		b.WriteString(row + "\n")
+		b.WriteString(header + "\n")
+		renderRows(groups[branch])
+	}
+	if len(roots) > 0 {
+		b.WriteString("roots  " + style("2", rootCount(len(roots))) + "\n")
+		renderRows(roots)
 	}
 	if len(m.items) == 0 {
 		b.WriteString(style("2", "(no worktrees)") + "\n")
@@ -449,7 +500,11 @@ func (m Model) View() tea.View {
 		b.WriteString(m.branch)
 	}
 	if m.confirm {
-		b.WriteString("\n" + style("1", "remove selected worktrees? enter/y confirm  esc/n cancel"))
+		prompt := "remove selected worktrees?"
+		if m.pending == actionDiscard {
+			prompt = "discard all local changes in selected roots?"
+		}
+		b.WriteString("\n" + style("1", prompt+" enter/y confirm  esc/n cancel"))
 	}
 	if m.palette {
 		b.WriteString("\n\n" + style("1", "commands") + "\n")
@@ -479,11 +534,16 @@ func operationLabel(a action) string {
 		return "pruning worktrees…"
 	case actionUpdate:
 		return "updating roots…"
+	case actionCheckoutBase:
+		return "checking out base…"
+	case actionDiscard:
+		return "discarding changes…"
 	}
 	return "working…"
 }
 
 func worktreeCount(n int) string { return fmt.Sprintf("%d worktree", n) + plural(n) }
+func rootCount(n int) string     { return fmt.Sprintf("%d root", n) + plural(n) }
 
 func plural(n int) string {
 	if n == 1 {
@@ -493,7 +553,7 @@ func plural(n int) string {
 }
 
 func (m Model) isProject(item worktree.Item) bool {
-	return item.Primary && !item.Detached && item.Branch == m.baseBranch()
+	return item.Primary && !item.Detached
 }
 
 func (m Model) baseBranch() string {
@@ -513,7 +573,7 @@ func (m *Model) clearRoots() {
 
 func (m *Model) clearFeature() {
 	for _, item := range m.items {
-		if item.Branch == m.feature {
+		if !item.Primary && item.Branch == m.feature {
 			m.selected[item.Path] = false
 		}
 	}
@@ -538,29 +598,19 @@ func (m Model) selectedRoots() []worktree.Item {
 func (m Model) selectedFeatureItems() []worktree.Item {
 	var items []worktree.Item
 	for _, item := range m.items {
-		if item.Branch == m.feature && !item.Detached && m.selected[item.Path] {
+		if !item.Primary && item.Branch == m.feature && !item.Detached && m.selected[item.Path] {
 			items = append(items, item)
 		}
 	}
 	return items
 }
 
-func (m Model) groupSize(branch string) int {
-	n := 0
-	for _, item := range m.items {
-		if item.Branch == branch {
-			n++
-		}
-	}
-	return n
-}
-
 func (m Model) availableActions() []action {
 	if roots := m.selectedRoots(); len(roots) > 0 {
 		if len(roots) == 1 {
-			return []action{actionAdd, actionPrune, actionUpdate}
+			return []action{actionAdd, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}
 		}
-		return []action{actionAddAll, actionPrune, actionUpdate}
+		return []action{actionAddAll, actionPrune, actionUpdate, actionCheckoutBase, actionDiscard}
 	}
 	items := m.selectedFeatureItems()
 	if len(items) == 0 {
