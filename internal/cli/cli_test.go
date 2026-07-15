@@ -352,7 +352,7 @@ func TestHelpListsCommands(t *testing.T) {
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) {
+	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
 		t.Fatalf("unexpected help: %q", got)
 	}
 }

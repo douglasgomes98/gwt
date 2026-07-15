@@ -58,6 +58,9 @@ gwt rm AG-123 --all
 # updates the current repository's primary checkout
 gwt update
 
+# updates the gwt CLI
+gwt upgrade
+
 # checks out the base branch in the primary checkout
 gwt checkout-base
 
@@ -79,6 +82,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt list` | Lists worktrees in the current repository. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update` | Updates the current repository's clean primary checkout on the base branch. |
+| `gwt upgrade` | Updates the installed CLI through Homebrew or Go. |
 | `gwt checkout-base` | Checks out the base branch in the current repository's clean primary checkout. |
 | `gwt discard` | Discards all local changes in the current repository's primary checkout: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |

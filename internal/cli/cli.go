@@ -103,6 +103,7 @@ Commands:
   list                                 List worktrees.
   prune                                Prune stale worktrees.
   update                               Update the current root.
+  upgrade                              Upgrade gwt.
   checkout-base                        Checkout the base branch in the current root.
   discard                              Discard all local changes in the current root.
   version                              Show the version.
