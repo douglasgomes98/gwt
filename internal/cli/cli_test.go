@@ -59,8 +59,18 @@ func TestCommandsUseRealWorktree(t *testing.T) {
 	if e := a.Run([]string{"list"}); e != nil {
 		t.Fatal(e)
 	}
-	if !bytes.Contains(out.Bytes(), []byte(path+"\tAG-1\t(clean)\n")) {
-		t.Fatalf("list output: %q", out.String())
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 3 || !strings.HasPrefix(lines[0], "PATH") {
+		t.Fatalf("list header: %q", out.String())
+	}
+	if !strings.Contains(lines[0], "BRANCH  STATUS") {
+		t.Fatalf("list header: %q", lines[0])
+	}
+	if !strings.HasSuffix(lines[1], "main    (clean)") {
+		t.Fatalf("primary row: %q", lines[1])
+	}
+	if !strings.HasSuffix(lines[2], "AG-1    (clean)") {
+		t.Fatalf("feature row: %q", lines[2])
 	}
 	if e := a.Run([]string{"prune"}); e != nil {
 		t.Fatal(e)
@@ -162,7 +172,7 @@ func TestListDisplaysDetachedWorktree(t *testing.T) {
 	if err := a.Run([]string{"list"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), path+"\t(detached)\t(clean)") {
+	if !strings.Contains(out.String(), path) || !strings.Contains(out.String(), "(detached)") || !strings.Contains(out.String(), "(clean)") {
 		t.Fatalf("list output: %q", out.String())
 	}
 }

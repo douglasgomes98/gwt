@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/douglasgomes/gwt/internal/config"
 	"github.com/douglasgomes/gwt/internal/worktree"
@@ -256,10 +257,12 @@ func (a App) list(args []string) error {
 	if err != nil {
 		return err
 	}
+	tw := tabwriter.NewWriter(a.Out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "PATH\tBRANCH\tSTATUS")
 	for _, x := range items {
-		fmt.Fprintf(a.Out, "%s\t%s\t%s\n", x.Path, displayBranch(x), worktree.Status(x))
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", x.Path, displayBranch(x), worktree.Status(x))
 	}
-	return nil
+	return tw.Flush()
 }
 func (a App) prune(args []string) error {
 	if len(args) != 0 {
