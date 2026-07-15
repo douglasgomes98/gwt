@@ -93,6 +93,9 @@ func (m Model) load(detailed bool) tea.Cmd {
 			items = append(items, xs...)
 		}
 		sort.Slice(items, func(i, j int) bool {
+			if items[i].Primary != items[j].Primary {
+				return !items[i].Primary
+			}
 			if items[i].Branch == items[j].Branch {
 				return items[i].Repo < items[j].Repo
 			}

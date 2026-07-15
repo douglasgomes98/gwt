@@ -416,11 +416,11 @@ func TestReloadIgnoresStaleDetailedStatus(t *testing.T) {
 	}
 }
 
-func TestLoadListsAndSortsWorktrees(t *testing.T) {
+func TestLoadListsFeaturesBeforeRoots(t *testing.T) {
 	parent := t.TempDir()
 	api := tuiTestRepo(t, parent, "api")
 	web := tuiTestRepo(t, parent, "web")
-	if _, err := worktree.Add(api, "AG-2", "main", config.Config{Layout: "sibling"}); err != nil {
+	if _, err := worktree.Add(api, "test-dobbinzinho", "main", config.Config{Layout: "sibling"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := worktree.Add(web, "AG-1", "main", config.Config{Layout: "sibling"}); err != nil {
@@ -435,9 +435,9 @@ func TestLoadListsAndSortsWorktrees(t *testing.T) {
 	if fast.err != nil || detailed.err != nil || len(fast.items) != 4 || len(detailed.items) != 4 {
 		t.Fatalf("load: fast=%#v detailed=%#v", fast, detailed)
 	}
-	for i := 1; i < len(fast.items); i++ {
-		if fast.items[i-1].Branch > fast.items[i].Branch {
-			t.Fatalf("items not sorted: %#v", fast.items)
+	for _, items := range [][]worktree.Item{fast.items, detailed.items} {
+		if items[0].Branch != "AG-1" || items[1].Branch != "test-dobbinzinho" || !items[2].Primary || !items[3].Primary {
+			t.Fatalf("items do not match display order: %#v", items)
 		}
 	}
 }
