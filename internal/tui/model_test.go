@@ -640,6 +640,54 @@ func TestOpenEditorPassesWorktreePath(t *testing.T) {
 	}
 }
 
+func TestOpenEditorOpensEverySelectedWorktree(t *testing.T) {
+	paths := []string{t.TempDir(), t.TempDir()}
+	argumentPath := filepath.Join(t.TempDir(), "editor-arguments")
+	editor := filepath.Join(t.TempDir(), "editor")
+	if err := os.WriteFile(editor, []byte("#!/bin/sh\nprintf '%s\\n' \"$1\" >> \"$GWT_EDITOR_ARGUMENT\"\n"), 0700); err != nil { // #nosec G306 -- test script must be executable.
+		t.Fatal(err)
+	}
+	t.Setenv("GWT_EDITOR_ARGUMENT", argumentPath)
+
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: paths[0]}, {Repo: "web", Branch: "AG-1", Path: paths[1]}})
+	m.feature = "AG-1"
+	for _, path := range paths {
+		m.selected[path] = true
+	}
+	m.config.Editor = editor
+	model := &openCommandModel{cmd: m.openSelected(actionOpenEditor)}
+	if _, err := tea.NewProgram(model, tea.WithInput(bytes.NewBuffer(nil)), tea.WithOutput(io.Discard)).Run(); err != nil {
+		t.Fatal(err)
+	}
+	if model.err != nil {
+		t.Fatalf("open editor: %v", model.err)
+	}
+	got, err := os.ReadFile(argumentPath) // #nosec G304 -- test reads its generated temporary output.
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != strings.Join(paths, "\n")+"\n" {
+		t.Fatalf("editor arguments = %q, want %q", got, strings.Join(paths, "\n")+"\n")
+	}
+}
+
+func TestSelectedWorktreeGroupOffersOnlyEditorOpen(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: t.TempDir()}, {Repo: "web", Branch: "AG-1", Path: t.TempDir()}})
+	m.feature = "AG-1"
+	for _, item := range m.items {
+		m.selected[item.Path] = true
+	}
+	m.config = config.Config{Editor: "code", Agent: "codex"}
+
+	actions := m.availableActions()
+	if !slices.Contains(actions, actionOpenEditor) {
+		t.Fatalf("actions = %v, want open editor", actions)
+	}
+	if slices.Contains(actions, actionOpen) || slices.Contains(actions, actionOpenAgent) {
+		t.Fatalf("actions = %v, shell and agent must require one worktree", actions)
+	}
+}
+
 func TestSelectionOperationsReportRealBoundaryErrors(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: t.TempDir()}})
 	m.feature = "AG-1"
