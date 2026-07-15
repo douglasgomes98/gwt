@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/douglasgomes/gwt/internal/config"
 )
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
+}
 
 func testRepo(t *testing.T) string {
 	t.Helper()
@@ -362,8 +369,73 @@ func TestHelpListsCommands(t *testing.T) {
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
+	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "init-config                          Create a local configuration file.") || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
 		t.Fatalf("unexpected help: %q", got)
+	}
+}
+
+func TestInitConfigCreatesLocalConfig(t *testing.T) {
+	dir := t.TempDir()
+	var out bytes.Buffer
+	a := New(&out, &bytes.Buffer{}, dir, "", config.Config{Layout: "inside", BaseBranch: "trunk", Editor: "vim", Agent: "codex"})
+	if err := a.Run([]string{"init-config"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "gwt.yml")) // #nosec G304 -- test reads its own fixed fixture path.
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "layout: inside\nbaseBranch: trunk\neditor: vim\nagent: codex\n"
+	if got := string(data); got != want {
+		t.Fatalf("config = %q, want %q", got, want)
+	}
+}
+
+func TestInitConfigDoesNotOverwriteExistingConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gwt.yml")
+	if err := os.WriteFile(path, []byte("layout: grouped\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err := New(io.Discard, io.Discard, dir, "", config.Config{}).Run([]string{"init-config"})
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("error = %v", err)
+	}
+	data, err := os.ReadFile(path) // #nosec G304 -- test reads its own fixed fixture path.
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); got != "layout: grouped\n" {
+		t.Fatalf("config = %q", got)
+	}
+}
+
+func TestInitConfigRoundTripsEmptyOptionalCommands(t *testing.T) {
+	dir := t.TempDir()
+	want := config.Config{Layout: "grouped", BaseBranch: "main", Editor: "", Agent: ""}
+	if err := New(io.Discard, io.Discard, dir, "", want).Run([]string{"init-config"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("config = %#v, want %#v", got, want)
+	}
+}
+
+func TestInitConfigRejectsArguments(t *testing.T) {
+	err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"init-config", "extra"})
+	if err == nil || !strings.Contains(err.Error(), "usage: gwt init-config") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestInitConfigReportsOutputError(t *testing.T) {
+	err := New(failingWriter{}, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"init-config"})
+	if err == nil || !strings.Contains(err.Error(), "write failed") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
