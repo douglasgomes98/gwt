@@ -19,6 +19,7 @@ assets or a public package unless the command genuinely needs one.
 Run these from the repository root:
 
 ```sh
+make deps       # download Go module dependencies
 make lint       # run the GolangCI-Lint quality gate
 make test       # go vet ./... followed by go test ./...
 make build      # build bin/gwt with version metadata

@@ -146,6 +146,7 @@ GitHub Actions runs linting, tests, and coverage checks for pull requests to
 `main` and every push to `main`.
 
 ```sh
+make deps
 make lint
 make test
 make build
