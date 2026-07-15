@@ -381,9 +381,26 @@ func TestLoadedDetailedResultWins(t *testing.T) {
 	m := New("/tmp", config.Config{})
 	m.detailed = true
 	m.message = "detailed"
-	updated, _ := m.Update(loaded{items: []worktree.Item{{Branch: "old"}}})
+	updated, _ := m.Update(loaded{loadID: m.loadID, items: []worktree.Item{{Branch: "old"}}})
 	if updated.(Model).message != "detailed" {
 		t.Fatal("fast result replaced detailed state")
+	}
+}
+
+func TestReloadIgnoresStaleDetailedStatus(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true, Changes: 1}})
+	m.detailed = true
+	staleLoadID := m.loadID
+	updated, _ := m.Update(operationResult{message: "discarded changes", reload: true})
+	m = updated.(Model)
+
+	updated, _ = m.Update(loaded{loadID: m.loadID, detailed: true, items: []worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}}})
+	m = updated.(Model)
+	updated, _ = m.Update(loaded{loadID: staleLoadID, detailed: true, items: []worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true, Changes: 1}}})
+	m = updated.(Model)
+
+	if m.items[0].Dirty {
+		t.Fatalf("stale status replaced the refreshed result: %#v", m.items[0])
 	}
 }
 
@@ -745,9 +762,9 @@ func TestOperationResultPartialErrorSurvivesReloadMessages(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
 	updated, _ := m.Update(operationResult{err: partial(actionAdd, os.ErrPermission), reload: true})
 	m = updated.(Model)
-	updated, _ = m.Update(loaded{items: m.items, detailed: false})
+	updated, _ = m.Update(loaded{loadID: m.loadID, items: m.items, detailed: false})
 	m = updated.(Model)
-	updated, _ = m.Update(loaded{items: m.items, detailed: true})
+	updated, _ = m.Update(loaded{loadID: m.loadID, items: m.items, detailed: true})
 	m = updated.(Model)
 	if !strings.Contains(m.View().Content, "result may be partial") {
 		t.Fatalf("operation error lost after reload: %q", m.View().Content)

@@ -32,6 +32,7 @@ type Model struct {
 	busy     action
 	spinner  int
 	detailed bool
+	loadID   int
 }
 
 type action string
@@ -54,6 +55,7 @@ type loaded struct {
 	items    []worktree.Item
 	err      error
 	detailed bool
+	loadID   int
 }
 
 type operationResult struct {
@@ -67,7 +69,7 @@ type spinnerTick struct{}
 var spinnerFrames = []string{"|", "/", "-", "\\"}
 
 func New(cwd string, c config.Config) Model {
-	return Model{cwd: cwd, config: c, selected: map[string]bool{}, message: "loading…"}
+	return Model{cwd: cwd, config: c, selected: map[string]bool{}, message: "loading…", loadID: 1}
 }
 func (m Model) Init() tea.Cmd   { return m.reload() }
 func (m Model) reload() tea.Cmd { return tea.Batch(m.load(false), m.load(true)) }
@@ -75,7 +77,7 @@ func (m Model) load(detailed bool) tea.Cmd {
 	return func() tea.Msg {
 		repos, err := worktree.Repos(m.cwd)
 		if err != nil {
-			return loaded{err: err, detailed: detailed}
+			return loaded{err: err, detailed: detailed, loadID: m.loadID}
 		}
 		var items []worktree.Item
 		for _, repo := range repos {
@@ -86,7 +88,7 @@ func (m Model) load(detailed bool) tea.Cmd {
 				xs, err = worktree.ListFast(repo)
 			}
 			if err != nil {
-				return loaded{err: err, detailed: detailed}
+				return loaded{err: err, detailed: detailed, loadID: m.loadID}
 			}
 			items = append(items, xs...)
 		}
@@ -96,7 +98,7 @@ func (m Model) load(detailed bool) tea.Cmd {
 			}
 			return items[i].Branch < items[j].Branch
 		})
-		return loaded{items: items, detailed: detailed}
+		return loaded{items: items, detailed: detailed, loadID: m.loadID}
 	}
 }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -112,6 +114,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.result = x.message
 		}
 		if x.reload {
+			m.loadID++
 			return m, m.reload()
 		}
 		return m, nil
@@ -122,6 +125,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner = (m.spinner + 1) % len(spinnerFrames)
 		return m, m.nextSpinner()
 	case loaded:
+		if x.loadID != m.loadID {
+			return m, nil
+		}
 		if m.detailed && !x.detailed {
 			return m, nil
 		}
