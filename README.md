@@ -133,6 +133,9 @@ agent: claude
 All fields are optional. The defaults are `sibling`, `main`, `code`, and
 `claude`.
 
+Run `gwt init-config` to create a `gwt.yml` in the current directory. It uses
+the active configuration values and never overwrites an existing file.
+
 ### Layouts
 
 | Layout | Destination for `api` and branch `AG-123` |

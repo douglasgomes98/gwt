@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/douglasgomes/gwt/internal/config"
 	"github.com/douglasgomes/gwt/internal/worktree"
+	"gopkg.in/yaml.v3"
 )
 
 var executable = os.Executable
@@ -52,6 +54,8 @@ func (a App) Run(args []string) error {
 		return a.upgrade(args[1:])
 	case "skill":
 		return a.skill(args[1:])
+	case "init-config":
+		return a.initConfig(args[1:])
 	case "checkout-base":
 		return a.checkoutBase(args[1:])
 	case "discard":
@@ -108,6 +112,7 @@ Commands:
   update                               Update the current root.
   upgrade                              Upgrade gwt.
   skill install --agents|--claude       Install the gwt worktree skill for agents.
+  init-config                          Create a local configuration file.
   checkout-base                        Checkout the base branch in the current root.
   discard                              Discard all local changes in the current root.
   version                              Show the version.
@@ -115,6 +120,33 @@ Commands:
 
 Run gwt without a command to open the TUI.
 `)
+	return err
+}
+
+func (a App) initConfig(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("usage: gwt init-config")
+	}
+	data, err := yaml.Marshal(a.Config)
+	if err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+	path := filepath.Join(a.Dir, "gwt.yml")
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600) // #nosec G304 -- path is fixed to the current working directory.
+	if errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("config %s already exists", path)
+	}
+	if err != nil {
+		return fmt.Errorf("create config %s: %w", path, err)
+	}
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write config %s: %w", path, err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close config %s: %w", path, err)
+	}
+	_, err = fmt.Fprintln(a.Out, path)
 	return err
 }
 
