@@ -22,6 +22,9 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
@@ -31,6 +34,8 @@ jobs:
           version: "~> v2"
           args: --version
       - run: make test
+      - run: make coverage
+      - run: goreleaser check
       - run: npm ci
       - run: npx semantic-release
         env:
