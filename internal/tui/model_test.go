@@ -218,6 +218,13 @@ func TestViewUsesAlternateScreen(t *testing.T) {
 	}
 }
 
+func TestViewDoesNotRenderTitle(t *testing.T) {
+	m := modelWith(nil)
+	if strings.Contains(m.View().Content, "gwt") {
+		t.Fatalf("unexpected title: %q", m.View().Content)
+	}
+}
+
 func TestDiscardActionRequiresConfirmation(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "guru", Branch: "feature", Path: "/guru", Primary: true}})
 	m = press(m, "space")

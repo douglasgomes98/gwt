@@ -484,7 +484,6 @@ func openShell(dir string) error {
 
 func (m Model) View() tea.View {
 	var b strings.Builder
-	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
 	m.renderRows(&b)
 	m.renderStatus(&b)
 	m.renderConfirmation(&b)
