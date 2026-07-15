@@ -335,7 +335,7 @@ func TestUpgrade(t *testing.T) {
 					if tc.prefix == "" {
 						return exec.Command("false")
 					}
-					return exec.Command("sh", "-c", "printf "+tc.prefix)
+					return exec.Command("printf", "%s", tc.prefix) // #nosec G204 -- prefix comes from a fixed test table.
 				}
 				if name == tc.wantName && slices.Equal(args, tc.wantArgs) {
 					if tc.fail {
