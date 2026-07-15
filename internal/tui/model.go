@@ -226,6 +226,9 @@ func (m Model) handleListNavigation(key tea.KeyPressMsg) (Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "esc":
+		if len(m.selected) == 0 {
+			return m, tea.Quit
+		}
 		m.clearSelection()
 	case "down", "j":
 		if m.cursor < len(m.items)-1 {
@@ -484,7 +487,6 @@ func openShell(dir string) error {
 
 func (m Model) View() tea.View {
 	var b strings.Builder
-	b.WriteString(style("1;38;5;81", "gwt") + "\n\n")
 	m.renderRows(&b)
 	m.renderStatus(&b)
 	m.renderConfirmation(&b)
@@ -593,8 +595,12 @@ func (m Model) renderPalette(b *strings.Builder) {
 			b.WriteString(mark + " " + actionLabel(action) + "\n")
 		}
 		b.WriteString(keyHint("enter", "select", "1;38;5;114", "0") + "  " + keyHint("esc", "close", "2", "2"))
-	} else if !m.input && !m.confirm && len(m.availableActions()) > 0 {
-		b.WriteString("\n" + keyHint("enter", "commands", "1;38;5;114", "0") + "  " + keyHint("q", "quit", "2", "2"))
+	} else if !m.input && !m.confirm {
+		if len(m.availableActions()) == 0 {
+			b.WriteString("\n" + keyHint("q/esc", "quit", "2", "2"))
+		} else {
+			b.WriteString("\n" + keyHint("enter", "commands", "1;38;5;114", "0") + "  " + keyHint("q", "quit", "2", "2"))
+		}
 	}
 }
 

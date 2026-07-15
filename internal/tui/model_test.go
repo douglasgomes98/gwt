@@ -72,6 +72,17 @@ func TestEscapeClearsFeatureSelectionBeforeSelectingAnotherFeature(t *testing.T)
 	}
 }
 
+func TestEscapeQuitsWhenNothingIsSelected(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "esc"})
+	if cmd == nil {
+		t.Fatal("escape did not quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("escape did not return quit command")
+	}
+}
+
 func TestFeatureSelectionClearsWhenLastItemIsDeselected(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"}})
 	m = press(m, "space")
@@ -215,6 +226,13 @@ func TestViewUsesAlternateScreen(t *testing.T) {
 	m := modelWith(nil)
 	if !m.View().AltScreen {
 		t.Fatal("TUI must render in the alternate screen")
+	}
+}
+
+func TestViewDoesNotRenderTitle(t *testing.T) {
+	m := modelWith(nil)
+	if strings.Contains(m.View().Content, "gwt") {
+		t.Fatalf("unexpected title: %q", m.View().Content)
 	}
 }
 
@@ -673,6 +691,9 @@ func TestViewShowsInputConfirmationAndPalette(t *testing.T) {
 func TestViewUsesConsistentKeyHints(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	if view := m.View().Content; !strings.Contains(view, "[q/esc] quit") {
+		t.Fatal(view)
+	}
 	m.selected["/api"] = true
 	if view := m.View().Content; !strings.Contains(view, "[enter] commands  [q] quit") {
 		t.Fatal(view)
