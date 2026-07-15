@@ -177,6 +177,15 @@ func TestBranchInputRendersAfterBranchLabel(t *testing.T) {
 	}
 }
 
+func TestBranchInputAcceptsPaste(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m, _ = m.execute(actionAdd)
+	updated, _ := m.Update(tea.PasteMsg{Content: "AG-123"})
+	if got := updated.(Model).branch; got != "AG-123" {
+		t.Fatalf("branch: %q", got)
+	}
+}
+
 func TestDetachedPrimaryRootCannotBeSelected(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Detached: true}})
 	m = press(m, "space")
@@ -386,7 +395,9 @@ func TestSelectionOperationsReportRealBoundaryErrors(t *testing.T) {
 	if result.err == nil || !result.reload || !strings.Contains(result.err.Error(), "root for api not found") {
 		t.Fatalf("remove result: %#v", result)
 	}
-	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: t.TempDir(), Primary: true}})
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: api, Primary: true}})
 	m.selected[m.items[0].Path] = true
 	result = m.addSelected()().(operationResult)
 	if result.err == nil || !result.reload || !strings.Contains(result.err.Error(), "branch is required") {
@@ -482,6 +493,30 @@ func TestTUIAddUsesOnlySelectedRootsAndNoFetch(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(parent, "web.AG-1")); !os.IsNotExist(err) {
 		t.Fatalf("unselected root changed: %v", err)
+	}
+}
+
+func TestTUIAddRejectsExistingWorktreeBeforeCreatingAny(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	web := tuiTestRepo(t, parent, "web")
+	if _, err := worktree.Add(api, "AG-1", "main", config.Config{Layout: "sibling"}); err != nil {
+		t.Fatal(err)
+	}
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: api, Primary: true},
+		{Repo: "web", Branch: "main", Path: web, Primary: true},
+	})
+	m.selected[api], m.selected[web], m.branch = true, true, "AG-1"
+	result := m.addSelected()().(operationResult)
+	if result.err == nil || !strings.Contains(result.err.Error(), "already exists in api") {
+		t.Fatalf("result: %#v", result)
+	}
+	if strings.Contains(result.err.Error(), "result may be partial") {
+		t.Fatalf("unexpected partial result: %v", result.err)
+	}
+	if _, err := os.Stat(filepath.Join(parent, "web.AG-1")); !os.IsNotExist(err) {
+		t.Fatalf("web changed: %v", err)
 	}
 }
 

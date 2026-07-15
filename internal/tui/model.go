@@ -122,6 +122,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message += " (checking status…)"
 		}
 		return m, nil
+	case tea.PasteMsg:
+		if m.input {
+			m.branch += x.Content
+		}
+		return m, nil
 	case tea.KeyPressMsg:
 		m.result = ""
 		if m.confirm {
@@ -242,6 +247,17 @@ func (m Model) execute(a action) (Model, tea.Cmd) {
 func (m Model) addSelected() tea.Cmd {
 	roots, branch := m.selectedRoots(), m.branch
 	return func() tea.Msg {
+		for _, root := range roots {
+			items, err := worktree.ListFast(root.Path)
+			if err != nil {
+				return operationResult{err: fmt.Errorf("add: inspect %s: %w", root.Repo, err), reload: true}
+			}
+			for _, item := range items {
+				if item.Branch == branch {
+					return operationResult{err: fmt.Errorf("add: branch %q already exists in %s", branch, root.Repo), reload: true}
+				}
+			}
+		}
 		for _, root := range roots {
 			if _, err := worktree.Add(root.Path, branch, m.baseBranch(), m.config); err != nil {
 				return operationResult{err: partial(actionAdd, err), reload: true}
