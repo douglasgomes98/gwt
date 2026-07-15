@@ -421,18 +421,31 @@ func (m Model) openSelected(a action) tea.Cmd {
 	if len(items) == 0 {
 		items = m.selectedRoots()
 	}
-	if len(items) != 1 {
+	if len(items) == 0 || (a != actionOpenEditor && len(items) != 1) {
 		return func() tea.Msg {
 			return operationResult{err: fmt.Errorf("select one worktree to open"), reload: true}
 		}
+	}
+	if a == actionOpenEditor {
+		cmds := make([]tea.Cmd, 0, len(items))
+		for _, item := range items {
+			cmd, err := commandAt(m.config.Editor, item.Path, item.Path)
+			if err != nil {
+				return func() tea.Msg {
+					return operationResult{err: err, reload: true}
+				}
+			}
+			cmds = append(cmds, tea.ExecProcess(cmd, func(err error) tea.Msg {
+				return operationResult{err: err, message: "opened " + item.Path, reload: true}
+			}))
+		}
+		return tea.Sequence(cmds...)
 	}
 	var (
 		cmd *exec.Cmd
 		err error
 	)
 	switch a {
-	case actionOpenEditor:
-		cmd, err = commandAt(m.config.Editor, items[0].Path, items[0].Path)
 	case actionOpenAgent:
 		cmd, err = commandAt(m.config.Agent, items[0].Path)
 	default:
@@ -762,6 +775,8 @@ func (m Model) availableActions() []action {
 			if m.config.Agent != "" {
 				actions = append(actions, actionOpenAgent)
 			}
+		} else if m.config.Editor != "" {
+			actions = append(actions, actionOpenEditor)
 		}
 		allClean, allOnBase, anyDirty := true, true, false
 		for _, root := range roots {
@@ -785,7 +800,11 @@ func (m Model) availableActions() []action {
 		return nil
 	}
 	if len(items) > 1 {
-		return []action{actionRemoveAll, actionPrune}
+		actions := []action{actionRemoveAll, actionPrune}
+		if m.config.Editor != "" {
+			actions = append(actions, actionOpenEditor)
+		}
+		return actions
 	}
 	actions := []action{actionOpen}
 	if m.config.Editor != "" {
