@@ -489,7 +489,9 @@ func (m Model) View() tea.View {
 	m.renderStatus(&b)
 	m.renderConfirmation(&b)
 	m.renderPalette(&b)
-	return tea.NewView(b.String())
+	view := tea.NewView(b.String())
+	view.AltScreen = true
+	return view
 }
 
 func (m Model) renderRows(b *strings.Builder) {
@@ -594,9 +596,6 @@ func (m Model) renderPalette(b *strings.Builder) {
 	} else if !m.input && !m.confirm && len(m.availableActions()) > 0 {
 		b.WriteString("\n" + keyHint("enter", "commands", "1;38;5;114", "0") + "  " + keyHint("q", "quit", "2", "2"))
 	}
-	view := tea.NewView(b.String())
-	view.AltScreen = true
-	return view
 }
 
 func displayPath(path string) string { return filepath.Base(path) }
