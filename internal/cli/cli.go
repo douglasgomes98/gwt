@@ -50,6 +50,8 @@ func (a App) Run(args []string) error {
 		return a.update(args[1:])
 	case "upgrade":
 		return a.upgrade(args[1:])
+	case "skill":
+		return a.skill(args[1:])
 	case "checkout-base":
 		return a.checkoutBase(args[1:])
 	case "discard":
@@ -105,6 +107,7 @@ Commands:
   prune                                Prune stale worktrees.
   update                               Update the current root.
   upgrade                              Upgrade gwt.
+  skill install --agents|--claude       Install the gwt worktree skill for agents.
   checkout-base                        Checkout the base branch in the current root.
   discard                              Discard all local changes in the current root.
   version                              Show the version.

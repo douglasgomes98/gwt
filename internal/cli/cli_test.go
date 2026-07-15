@@ -119,6 +119,156 @@ func TestPruneRejectsArguments(t *testing.T) {
 	}
 }
 
+func TestSkillInstallCopiesEmbeddedSkillToSelectedHomes(t *testing.T) {
+	home := t.TempDir()
+	oldHome := userHomeDir
+	userHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { userHomeDir = oldHome })
+
+	var out bytes.Buffer
+	a := New(&out, &bytes.Buffer{}, t.TempDir(), "", config.Config{})
+	if err := a.Run([]string{"skill", "install", "--agents", "--claude"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md"),
+		filepath.Join(home, ".claude", "skills", "gwt-worktrees", "SKILL.md"),
+	} {
+		got, err := os.ReadFile(path) // #nosec G304 -- test reads a path built from its temp home.
+		if err != nil || !bytes.Equal(got, gwtWorktreesSkill) {
+			t.Fatalf("skill at %s = %q, %v", path, got, err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0600 {
+			t.Fatalf("skill mode at %s = %v", path, info.Mode())
+		}
+	}
+	dir, err := os.Stat(filepath.Join(home, ".agents", "skills", "gwt-worktrees"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir.Mode().Perm() != 0750 {
+		t.Fatalf("skill directory mode = %v", dir.Mode())
+	}
+}
+
+func TestSkillInstallPreflightsExistingDestination(t *testing.T) {
+	home := t.TempDir()
+	oldHome := userHomeDir
+	userHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { userHomeDir = oldHome })
+
+	claude := filepath.Join(home, ".claude", "skills", "gwt-worktrees", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(claude), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(claude, []byte("custom"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "install", "--agents", "--claude"})
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("agents installation = %v", err)
+	}
+}
+
+func TestSkillInstallReportsHomeLookupFailure(t *testing.T) {
+	oldHome := userHomeDir
+	userHomeDir = func() (string, error) { return "", io.ErrUnexpectedEOF }
+	t.Cleanup(func() { userHomeDir = oldHome })
+
+	err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "install", "--agents"})
+	if err == nil || !strings.Contains(err.Error(), "find home directory") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestSkillInstallReportsDestinationCreationFailure(t *testing.T) {
+	oldHome, oldMkdirAll := userHomeDir, makeSkillDir
+	userHomeDir = func() (string, error) { return t.TempDir(), nil }
+	makeSkillDir = func(string, os.FileMode) error { return io.ErrClosedPipe }
+	t.Cleanup(func() {
+		userHomeDir = oldHome
+		makeSkillDir = oldMkdirAll
+	})
+
+	err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "install", "--agents"})
+	if err == nil || !strings.Contains(err.Error(), "create skill destination") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func TestSkillInstallCompletesBeforeReportingFails(t *testing.T) {
+	home := t.TempDir()
+	oldHome := userHomeDir
+	userHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { userHomeDir = oldHome })
+
+	err := New(failingWriter{}, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "install", "--agents", "--claude"})
+	if err == nil {
+		t.Fatalf("error = %v", err)
+	}
+	for _, path := range []string{
+		filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md"),
+		filepath.Join(home, ".claude", "skills", "gwt-worktrees", "SKILL.md"),
+	} {
+		if _, err := os.Lstat(path); err != nil {
+			t.Fatalf("skill after reporting failure = %v", err)
+		}
+	}
+}
+
+func TestSkillInstallRollsBackAfterSecondWriteFails(t *testing.T) {
+	home := t.TempDir()
+	oldHome, oldOpen := userHomeDir, openSkillFile
+	userHomeDir = func() (string, error) { return home, nil }
+	calls := 0
+	openSkillFile = func(path string, flag int, perm os.FileMode) (*os.File, error) {
+		calls++
+		if calls == 2 {
+			return nil, io.ErrClosedPipe
+		}
+		return os.OpenFile(path, flag, perm) // #nosec G304 -- test uses the generated temporary destination.
+	}
+	t.Cleanup(func() {
+		userHomeDir = oldHome
+		openSkillFile = oldOpen
+	})
+
+	err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "install", "--agents", "--claude"})
+	if err == nil || !strings.Contains(err.Error(), "write skill destination") {
+		t.Fatalf("error = %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("agents skill after write failure = %v", err)
+	}
+}
+
+func TestWriteSkillDoesNotOverwriteExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "SKILL.md")
+	if err := os.WriteFile(path, []byte("custom"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeSkill(path); err == nil {
+		t.Fatal("writeSkill overwrote an existing file")
+	}
+	got, err := os.ReadFile(path) // #nosec G304 -- test reads its temporary fixture.
+	if err != nil || string(got) != "custom" {
+		t.Fatalf("file = %q, %v", got, err)
+	}
+}
+
 func TestV0CLIRejectsRemovedCompatibilityForms(t *testing.T) {
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main"})
 	for _, args := range [][]string{{"open", "AG-1", "-p"}, {"prune", "extra"}, {"version", "extra"}} {
@@ -296,7 +446,7 @@ func TestRootManagementCommandsRejectArguments(t *testing.T) {
 
 func TestCommandErrorsAndHelpers(t *testing.T) {
 	a := App{Out: &bytes.Buffer{}, Err: &bytes.Buffer{}, Dir: t.TempDir()}
-	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}, {"upgrade", "extra"}} {
+	for _, args := range [][]string{nil, {"unknown"}, {"--version"}, {"-version"}, {"help", "add"}, {"add"}, {"open"}, {"rm"}, {"list", "extra"}, {"upgrade", "extra"}, {"skill"}, {"skill", "install"}, {"skill", "install", "extra"}, {"skill", "remove", "--agents"}} {
 		if err := a.Run(args); err == nil {
 			t.Fatalf("expected error for %v", args)
 		}
@@ -362,7 +512,7 @@ func TestHelpListsCommands(t *testing.T) {
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
+	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "upgrade                              Upgrade gwt.") || !strings.Contains(got, "skill install --agents|--claude") {
 		t.Fatalf("unexpected help: %q", got)
 	}
 }
