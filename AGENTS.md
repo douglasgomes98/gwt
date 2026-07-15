@@ -60,7 +60,9 @@ worktree`, `feat(cli): add prune command`, or `refactor(worktree): simplify scan
 Keep commits focused. Pull requests should state the user-visible change, link
 the relevant issue when available, include test results, and attach a terminal
 capture for TUI-facing changes. Call out any change that can remove worktrees
-or alter Git commands.
+or alter Git commands. Create every change in an isolated worktree on a
+dedicated branch; never push directly to `main`, and merge through a pull
+request.
 
 ## Configuration & Safety
 
