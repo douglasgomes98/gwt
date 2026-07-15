@@ -5,9 +5,9 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/douglasgomes/gwt/internal/cli"
-	"github.com/douglasgomes/gwt/internal/config"
-	"github.com/douglasgomes/gwt/internal/tui"
+	"github.com/douglasgomes98/gwt/internal/cli"
+	"github.com/douglasgomes98/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/tui"
 )
 
 var version = "dev"

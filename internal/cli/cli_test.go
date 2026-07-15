@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/douglasgomes/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/config"
 )
 
 func testRepo(t *testing.T) string {

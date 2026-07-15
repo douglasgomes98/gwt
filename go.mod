@@ -1,4 +1,4 @@
-module github.com/douglasgomes/gwt
+module github.com/douglasgomes98/gwt
 
 go 1.26
 
