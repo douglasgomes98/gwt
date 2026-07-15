@@ -16,7 +16,7 @@ release binaries, a personal Homebrew tap, and a Go-installable module.
 - Run release automation only after the existing Go checks pass on `main`.
 - Produce GitHub release archives for supported macOS, Linux, and Windows
   targets, plus checksums.
-- Update the `douglasgomes98/homebrew-tap` Cask from GoReleaser.
+- Update a source-building formula in `douglasgomes98/homebrew-tap`.
 - Add a local pull-request rule: titles must be Conventional Commits; with
   squash merge, the title is the release-relevant commit message.
 - Document Go and Homebrew installation and the release convention.
@@ -30,7 +30,9 @@ One GitHub Actions release workflow runs on pushes to `main`.
    It analyzes commits and creates the next `vX.Y.Z` tag only when a release is
    warranted.
 3. Run GoReleaser in the same job against that tag. It builds archives,
-   publishes the GitHub release, and commits the generated Cask to the tap.
+   publishes the GitHub release. A small release script then updates the tap
+   formula with the tag's source archive checksum; Homebrew builds the binary
+   from that source.
 
 The release workflow has `contents: write` for tags and GitHub releases.
 `TAP_GITHUB_TOKEN` is a repository secret used only by GoReleaser to update
@@ -44,11 +46,11 @@ The tag is the single source of truth:
 ```sh
 go install github.com/douglasgomes98/gwt/cmd/gwt@vX.Y.Z
 brew tap douglasgomes98/tap
-brew install --cask gwt
+brew install gwt
 ```
 
 `gwt upgrade` continues to select Homebrew when the running binary belongs to
-the `gwt` Cask; otherwise it runs Go installation.
+the `gwt` formula; otherwise it runs Go installation.
 
 ## Failure handling
 
@@ -66,7 +68,8 @@ the `gwt` Cask; otherwise it runs Go installation.
   covers it.
 - Validate Semantic Release in dry-run mode using fixture commit history or
   configuration checks.
-- Run GoReleaser in snapshot mode to validate archives and Cask rendering
+- Run GoReleaser in snapshot mode to validate archives, and render the formula
+  in a temporary tap checkout without pushing it.
   without publishing.
 - Run `make lint`, `make test`, `make coverage`, and `make build`.
 
@@ -74,4 +77,5 @@ the `gwt` Cask; otherwise it runs Go installation.
 
 - Homebrew core submission.
 - Pre-release channels, signing, notarization, Docker images, or automatic
-  changelog commits.
+  changelog commits. The Homebrew formula intentionally builds from source and
+  therefore needs no Apple Developer signing credentials.
