@@ -61,6 +61,12 @@ gwt update
 # updates the gwt CLI
 gwt upgrade
 
+# optionally install worktree guidance for agents in ~/.agents/skills
+gwt skill install --agents
+
+# install the same guidance for Claude Code in ~/.claude/skills
+gwt skill install --claude
+
 # checks out the base branch in the primary checkout
 gwt checkout-base
 
@@ -83,6 +89,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update` | Updates the current repository's clean primary checkout on the base branch. |
 | `gwt upgrade` | Updates the installed CLI through Homebrew or Go. |
+| `gwt skill install --agents|--claude` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
 | `gwt checkout-base` | Checks out the base branch in the current repository's clean primary checkout. |
 | `gwt discard` | Discards all local changes in the current repository's primary checkout: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |
