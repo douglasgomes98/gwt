@@ -114,6 +114,22 @@ func TestPaletteOnlyShowsValidCLICommands(t *testing.T) {
 	}
 }
 
+func TestActionLabelsAreDescriptiveAndLowercase(t *testing.T) {
+	labels := map[action]string{
+		actionAdd: "create worktree", actionAddAll: "create worktrees",
+		actionOpen: "open shell", actionOpenEditor: "open editor",
+		actionOpenAgent: "open agent", actionRemove: "remove worktree",
+		actionRemoveAll: "remove worktrees", actionPrune: "prune stale worktrees",
+		actionUpdate: "update root", actionCheckoutBase: "checkout base branch",
+		actionDiscard: "discard local changes",
+	}
+	for a, want := range labels {
+		if got := actionLabel(a); got != want || got != strings.ToLower(got) {
+			t.Fatalf("%s: %q", a, got)
+		}
+	}
+}
+
 func TestMultipleRootsAndFeaturesUseBatchCommands(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}, {Repo: "web", Branch: "main", Path: "/web", Primary: true}})
 	m = press(m, "space")

@@ -513,7 +513,7 @@ func (m Model) View() tea.View {
 			if i == m.pCursor {
 				mark = "›"
 			}
-			b.WriteString(fmt.Sprintf("%s %s\n", mark, action))
+			b.WriteString(fmt.Sprintf("%s %s\n", mark, actionLabel(action)))
 		}
 		b.WriteString(style("2", "enter select  esc close"))
 	} else if len(m.availableActions()) > 0 {
@@ -523,6 +523,34 @@ func (m Model) View() tea.View {
 }
 
 func displayPath(path string) string { return filepath.Base(path) }
+
+func actionLabel(a action) string {
+	switch a {
+	case actionAdd:
+		return "create worktree"
+	case actionAddAll:
+		return "create worktrees"
+	case actionOpen:
+		return "open shell"
+	case actionOpenEditor:
+		return "open editor"
+	case actionOpenAgent:
+		return "open agent"
+	case actionRemove:
+		return "remove worktree"
+	case actionRemoveAll:
+		return "remove worktrees"
+	case actionPrune:
+		return "prune stale worktrees"
+	case actionUpdate:
+		return "update root"
+	case actionCheckoutBase:
+		return "checkout base branch"
+	case actionDiscard:
+		return "discard local changes"
+	}
+	return string(a)
+}
 
 func operationLabel(a action) string {
 	switch a {
