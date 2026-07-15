@@ -92,7 +92,8 @@ As flags de abertura são mutuamente exclusivas:
 | `q` | Sai. |
 
 A TUI mantém a seleção e a escolha contextual de comando antes de executar
-operações de Git.
+operações de Git. Durante criação, remoção, limpeza ou atualização, ela mostra
+um indicador de progresso até a operação terminar.
 
 ## Configuração
 

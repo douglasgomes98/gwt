@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/douglasgomes/gwt/internal/config"
@@ -28,6 +29,8 @@ type Model struct {
 	pending  action
 	message  string
 	result   string
+	busy     action
+	spinner  int
 	detailed bool
 }
 
@@ -56,6 +59,10 @@ type operationResult struct {
 	message string
 	reload  bool
 }
+
+type spinnerTick struct{}
+
+var spinnerFrames = []string{"|", "/", "-", "\\"}
 
 func New(cwd string, c config.Config) Model {
 	return Model{cwd: cwd, config: c, selected: map[string]bool{}, message: "loading…"}
@@ -95,6 +102,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case operationResult:
 		m.palette, m.confirm, m.input = false, false, false
 		m.pending = ""
+		m.busy, m.spinner = "", 0
 		m.clearSelection()
 		if x.err != nil {
 			m.result = x.err.Error()
@@ -105,6 +113,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.reload()
 		}
 		return m, nil
+	case spinnerTick:
+		if m.busy == "" {
+			return m, nil
+		}
+		m.spinner = (m.spinner + 1) % len(spinnerFrames)
+		return m, m.nextSpinner()
 	case loaded:
 		if m.detailed && !x.detailed {
 			return m, nil
@@ -135,7 +149,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.confirm = false
 			case "enter", "y":
 				m.confirm = false
-				return m, m.removeSelected()
+				m, tick := m.start(m.pending)
+				return m, tea.Batch(tick, m.removeSelected())
 			}
 			return m, nil
 		}
@@ -213,7 +228,8 @@ func (m Model) typeBranch(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.input = false
 	case "enter":
 		m.input = false
-		return m, m.addSelected()
+		m, tick := m.start(actionAdd)
+		return m, tea.Batch(tick, m.addSelected())
 	case "backspace":
 		if len(m.branch) > 0 {
 			m.branch = m.branch[:len(m.branch)-1]
@@ -236,12 +252,23 @@ func (m Model) execute(a action) (Model, tea.Cmd) {
 		m.palette, m.confirm, m.pending = false, true, a
 		return m, nil
 	case actionPrune:
-		return m, m.pruneSelected()
+		m, tick := m.start(a)
+		return m, tea.Batch(tick, m.pruneSelected())
 	case actionUpdate:
-		return m, m.updateSelectedRoots()
+		m, tick := m.start(a)
+		return m, tea.Batch(tick, m.updateSelectedRoots())
 	default:
 		return m, m.openSelected(a)
 	}
+}
+
+func (m Model) start(a action) (Model, tea.Cmd) {
+	m.busy, m.spinner = a, 0
+	return m, m.nextSpinner()
+}
+
+func (m Model) nextSpinner() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return spinnerTick{} })
 }
 
 func (m Model) addSelected() tea.Cmd {
@@ -414,6 +441,9 @@ func (m Model) View() tea.View {
 	if m.result != "" {
 		status = m.result
 	}
+	if m.busy != "" {
+		status = fmt.Sprintf("%s %s", spinnerFrames[m.spinner], operationLabel(m.busy))
+	}
 	b.WriteString("\n" + style("2", status))
 	if m.input {
 		b.WriteString(m.branch)
@@ -438,6 +468,20 @@ func (m Model) View() tea.View {
 }
 
 func displayPath(path string) string { return filepath.Base(path) }
+
+func operationLabel(a action) string {
+	switch a {
+	case actionAdd, actionAddAll:
+		return "adding worktrees…"
+	case actionRemove, actionRemoveAll:
+		return "removing worktrees…"
+	case actionPrune:
+		return "pruning worktrees…"
+	case actionUpdate:
+		return "updating roots…"
+	}
+	return "working…"
+}
 
 func worktreeCount(n int) string { return fmt.Sprintf("%d worktree", n) + plural(n) }
 

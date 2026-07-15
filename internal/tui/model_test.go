@@ -186,6 +186,23 @@ func TestBranchInputAcceptsPaste(t *testing.T) {
 	}
 }
 
+func TestOperationSpinnerAdvancesUntilResult(t *testing.T) {
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m, _ = m.start(actionAdd)
+	if !strings.Contains(m.View().Content, "| adding worktrees…") {
+		t.Fatalf("missing spinner: %q", m.View().Content)
+	}
+	updated, cmd := m.Update(spinnerTick{})
+	m = updated.(Model)
+	if m.spinner != 1 || cmd == nil {
+		t.Fatalf("spinner did not advance: %#v", m)
+	}
+	updated, _ = m.Update(operationResult{message: "done"})
+	if updated.(Model).busy != "" {
+		t.Fatalf("spinner did not stop: %#v", updated)
+	}
+}
+
 func TestDetachedPrimaryRootCannotBeSelected(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Detached: true}})
 	m = press(m, "space")
@@ -485,9 +502,8 @@ func TestTUIAddUsesOnlySelectedRootsAndNoFetch(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("enter did not add selected roots")
 	}
-	result := cmd()
 	m = updated.(Model)
-	m.Update(result)
+	m.Update(m.addSelected()())
 	if _, err := os.Stat(filepath.Join(parent, "api.AG-1")); err != nil {
 		t.Fatalf("selected root not added: %v", err)
 	}
@@ -549,7 +565,7 @@ func TestTUIRemoveAllUsesOnlySelectedFeatureRows(t *testing.T) {
 		t.Fatal("confirmation did not remove selected rows")
 	}
 	m = updated.(Model)
-	m.Update(cmd())
+	m.Update(m.removeSelected()())
 	if _, err := os.Stat(apiFeature); !os.IsNotExist(err) {
 		t.Fatalf("selected feature was not removed: %v", err)
 	}
