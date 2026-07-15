@@ -498,13 +498,16 @@ func (m Model) View() tea.View {
 	b.WriteString("\n" + style("2", status))
 	if m.input {
 		b.WriteString(m.branch)
+		b.WriteString("  " + keyHint("enter", "create", "1;38;5;114", "0") + "  " + keyHint("esc", "cancel", "2", "2"))
 	}
 	if m.confirm {
 		prompt := "remove selected worktrees?"
+		promptStyle := "1;38;5;208"
 		if m.pending == actionDiscard {
 			prompt = "discard all local changes in selected roots?"
+			promptStyle = "1;38;5;203"
 		}
-		b.WriteString("\n" + style("1", prompt+" enter/y confirm  esc/n cancel"))
+		b.WriteString("\n" + style(promptStyle, prompt) + "  " + keyHint("enter/y", "confirm", "1;38;5;114", "0") + "  " + keyHint("esc/n", "cancel", "2", "2"))
 	}
 	if m.palette {
 		b.WriteString("\n\n" + style("1", "commands") + "\n")
@@ -515,14 +518,18 @@ func (m Model) View() tea.View {
 			}
 			b.WriteString(fmt.Sprintf("%s %s\n", mark, actionLabel(action)))
 		}
-		b.WriteString(style("2", "enter select  esc close"))
-	} else if len(m.availableActions()) > 0 {
-		b.WriteString("\n" + style("1", "Enter") + " commands  " + style("1", "q") + " quit")
+		b.WriteString(keyHint("enter", "select", "1;38;5;114", "0") + "  " + keyHint("esc", "close", "2", "2"))
+	} else if !m.input && !m.confirm && len(m.availableActions()) > 0 {
+		b.WriteString("\n" + keyHint("enter", "commands", "1;38;5;114", "0") + "  " + keyHint("q", "quit", "2", "2"))
 	}
 	return tea.NewView(b.String())
 }
 
 func displayPath(path string) string { return filepath.Base(path) }
+
+func keyHint(keys, label, keyStyle, labelStyle string) string {
+	return style(keyStyle, "["+keys+"]") + " " + style(labelStyle, label)
+}
 
 func actionLabel(a action) string {
 	switch a {

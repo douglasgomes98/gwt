@@ -579,6 +579,28 @@ func TestViewShowsInputConfirmationAndPalette(t *testing.T) {
 	}
 }
 
+func TestViewUsesConsistentKeyHints(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m.selected["/api"] = true
+	if view := m.View().Content; !strings.Contains(view, "[enter] commands  [q] quit") {
+		t.Fatal(view)
+	}
+	m.input, m.branch, m.message = true, "AG-1", "branch: "
+	if view := m.View().Content; !strings.Contains(view, "branch: AG-1  [enter] create  [esc] cancel") || strings.Contains(view, "[enter] commands") {
+		t.Fatal(view)
+	}
+	m.input, m.confirm, m.pending = false, true, actionRemove
+	if view := m.View().Content; !strings.Contains(view, "remove selected worktrees?  [enter/y] confirm  [esc/n] cancel") || strings.Contains(view, "[enter] commands") {
+		t.Fatal(view)
+	}
+	m.confirm, m.pending = false, ""
+	m.palette = true
+	if view := m.View().Content; !strings.Contains(view, "[enter] select  [esc] close") {
+		t.Fatal(view)
+	}
+}
+
 func TestTUIAddUsesOnlySelectedRootsAndNoFetch(t *testing.T) {
 	parent := t.TempDir()
 	api := tuiTestRepo(t, parent, "api")
