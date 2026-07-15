@@ -326,6 +326,7 @@ func TestPaletteAddStartsBranchInputWithoutMutation(t *testing.T) {
 }
 
 func TestBranchInputRendersAfterBranchLabel(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
 	m = press(m, "space")
 	m, _ = m.execute(actionAdd)
