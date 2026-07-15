@@ -1,20 +1,21 @@
 # gwt
 
-`gwt` gerencia Git worktrees em uma pasta com vários repositórios. É útil
-quando um ticket precisa da mesma branch em mais de um projeto.
+`gwt` manages Git worktrees in a directory containing multiple repositories.
+It is useful when a ticket needs the same branch in more than one project.
 
-Execute `gwt` na pasta que agrupa os repositórios ou dentro de um deles. A
-interface mostra os worktrees por branch, com estado dirty e ahead/behind.
+Run `gwt` from the directory that groups repositories or from within one of
+them. The interface displays worktrees by branch, including dirty and
+ahead/behind status.
 
-## Instalação
+## Installation
 
-Com Go instalado:
+With Go installed:
 
 ```sh
 go install github.com/douglasgomes98/gwt/cmd/gwt@latest
 ```
 
-Para desenvolver localmente:
+For local development:
 
 ```sh
 git clone https://github.com/douglasgomes98/gwt.git
@@ -22,12 +23,12 @@ cd gwt
 make install
 ```
 
-`go install` coloca o binário em `GOBIN` ou em `GOPATH/bin`. Garanta que esse
-diretório esteja no `PATH` do seu ambiente.
+`go install` places the binary in `GOBIN` or `GOPATH/bin`. Make sure that
+directory is in your environment's `PATH`.
 
-## Uso rápido
+## Quick start
 
-Considere esta estrutura:
+Consider this layout:
 
 ```text
 projects/
@@ -35,69 +36,68 @@ projects/
   web/
 ```
 
-Dentro de `projects/`, execute `gwt` para abrir a TUI. Dentro de `api/`, os
-comandos CLI operam naquele repositório; `--all` aplica a criação aos
-repositórios irmãos.
+From `projects/`, run `gwt` to open the TUI. From `api/`, CLI commands operate
+on that repository; `--all` applies creation to sibling repositories.
 
 ```sh
-# cria AG-123 no repositório atual
+# creates AG-123 in the current repository
 gwt add AG-123
 
-# cria AG-123 em api e web
+# creates AG-123 in api and web
 gwt add AG-123 --all
 
-# abre um subshell no worktree
+# opens a subshell in the worktree
 gwt open AG-123
 
-# remove o worktree do repositório atual, sem confirmação
+# removes the current repository's worktree without confirmation
 gwt rm AG-123
 
-# remove AG-123 de todos os repositórios irmãos que tiverem essa branch
+# removes AG-123 from all sibling repositories with that branch
 gwt rm AG-123 --all
 
-# atualiza o checkout principal do repositório atual
+# updates the current repository's primary checkout
 gwt update
 ```
 
-`gwt open` não consegue mudar o diretório do shell que o chamou. Por isso ele
-abre um subshell no worktree; ao sair, você volta ao diretório anterior.
+`gwt open` cannot change its calling shell's directory. It opens a subshell in
+the worktree instead; when you exit, you return to the previous directory.
 
-## Comandos
+## Commands
 
-| Comando | Descrição |
+| Command | Description |
 | --- | --- |
-| `gwt` | Abre a TUI. |
-| `gwt add <branch> [base] [--all] [-e\|-a]` | Cria um worktree. `--all` cria nos repositórios irmãos. |
-| `gwt open <branch> [-e\|-a]` | Abre subshell (padrão), editor ou agent. |
-| `gwt rm <branch> [--all]` | Remove forçadamente o worktree atual ou a mesma branch dos repositórios irmãos. O checkout principal nunca é removido. |
-| `gwt list` | Lista os worktrees do repositório atual. |
-| `gwt prune` | Executa `git worktree prune` nos repositórios descobertos. |
-| `gwt update` | Atualiza o checkout principal limpo, na branch base, do repositório atual. |
-| `gwt help` | Mostra a ajuda da CLI. |
-| `gwt version` | Mostra a versão do binário. |
+| `gwt` | Opens the TUI. |
+| `gwt add <branch> [base] [--all] [-e\|-a]` | Creates a worktree. `--all` creates one in sibling repositories. |
+| `gwt open <branch> [-e\|-a]` | Opens a subshell (default), editor, or agent. |
+| `gwt rm <branch> [--all]` | Force-removes the current worktree or the same branch from sibling repositories. The primary checkout is never removed. |
+| `gwt list` | Lists worktrees in the current repository. |
+| `gwt prune` | Runs `git worktree prune` on discovered repositories. |
+| `gwt update` | Updates the current repository's clean primary checkout on the base branch. |
+| `gwt help` | Shows CLI help. |
+| `gwt version` | Shows the binary version. |
 
-As flags de abertura são mutuamente exclusivas:
+The opening flags are mutually exclusive:
 
-- `-e`: usa o editor configurado.
-- `-a`: usa o agent configurado.
+- `-e`: uses the configured editor.
+- `-a`: uses the configured agent.
 
 ## TUI
 
-| Tecla | Ação |
+| Key | Action |
 | --- | --- |
-| `Space` | Seleciona um checkout principal ou uma feature. A primeira seleção de feature marca todos os seus worktrees; os próximos toques alternam só a linha focada. Checkouts detached não são selecionáveis. |
-| `Enter` | Abre a palette contextual. Em roots ela mostra `add`, `add --all`, `prune` e `update`; em features mostra `open`, `open -e`, `open -a`, `rm`, `rm --all` e `prune`, conforme a seleção e a configuração. Escolher `add` abre o prompt de branch. |
-| `j` / `k` ou setas | Move o foco da lista ou da palette. |
-| `Esc` | Fecha a palette sem limpar a seleção. |
-| `q` | Sai. |
+| `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
+| `Enter` | Opens the contextual palette. On roots it shows `add`, `add --all`, `prune`, and `update`; on features it shows `open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`, according to selection and configuration. Choosing `add` opens the branch prompt. |
+| `j` / `k` or arrows | Moves focus in the list or palette. |
+| `Esc` | Closes the palette without clearing the selection. |
+| `q` | Quits. |
 
-A TUI mantém a seleção e a escolha contextual de comando antes de executar
-operações de Git. Durante criação, remoção, limpeza ou atualização, ela mostra
-um indicador de progresso até a operação terminar.
+The TUI preserves the selection and contextual command choice before running
+Git operations. During creation, removal, pruning, or updates, it displays a
+progress indicator until the operation completes.
 
-## Configuração
+## Configuration
 
-Crie `gwt.yml` na pasta em que executar o comando ou
+Create `gwt.yml` in the directory where you run the command or at
 `~/.config/gwt/config.yml`:
 
 ```yaml
@@ -107,21 +107,21 @@ editor: code
 agent: claude
 ```
 
-Todos os campos são opcionais. Os valores padrão são `sibling`, `main`, `code`
-e `claude`.
+All fields are optional. The defaults are `sibling`, `main`, `code`, and
+`claude`.
 
 ### Layouts
 
-| Layout | Destino para `api` e branch `AG-123` |
+| Layout | Destination for `api` and branch `AG-123` |
 | --- | --- |
-| `sibling` (padrão) | `../api.AG-123` |
+| `sibling` (default) | `../api.AG-123` |
 | `grouped` | `../api.worktrees/api.AG-123` |
 | `inside` | `api/.worktrees/AG-123` |
 
-O layout `inside` não altera o `.gitignore`; adicione `.worktrees/` se não
-quiser que ela apareça como conteúdo não rastreado no checkout principal.
+The `inside` layout does not change `.gitignore`; add `.worktrees/` if you do
+not want it to appear as untracked content in the primary checkout.
 
-## Desenvolvimento
+## Development
 
 ```sh
 make test
@@ -130,15 +130,15 @@ make install
 make version
 ```
 
-Os testes criam repositórios Git temporários e exercitam criação, remoção e a
-proteção do checkout principal.
+Tests create temporary Git repositories and exercise creation, removal, and
+primary-checkout protection.
 
-## Segurança da remoção
+## Removal safety
 
-`gwt rm` é deliberadamente não interativo e usa remoção forçada, como o fluxo
-de aliases que ele substitui. Revise alterações não commitadas antes de
-confirmar uma remoção na TUI ou executar `gwt rm`.
+`gwt rm` is deliberately non-interactive and uses forced removal, like the
+alias workflow it replaces. Review uncommitted changes before confirming a
+removal in the TUI or running `gwt rm`.
 
-## Licença
+## License
 
 [MIT](LICENSE).
