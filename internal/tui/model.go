@@ -377,6 +377,9 @@ func (m Model) discardSelectedRoots() tea.Cmd {
 
 func (m Model) openSelected(a action) tea.Cmd {
 	items := m.selectedFeatureItems()
+	if len(items) == 0 {
+		items = m.selectedRoots()
+	}
 	return func() tea.Msg {
 		if len(items) != 1 {
 			return operationResult{err: fmt.Errorf("select one worktree to open"), reload: true}
@@ -660,6 +663,15 @@ func (m Model) availableActions() []action {
 			add = actionAddAll
 		}
 		actions := []action{add, actionPrune}
+		if len(roots) == 1 {
+			actions = append(actions, actionOpen)
+			if m.config.Editor != "" {
+				actions = append(actions, actionOpenEditor)
+			}
+			if m.config.Agent != "" {
+				actions = append(actions, actionOpenAgent)
+			}
+		}
 		allClean, allOnBase, anyDirty := true, true, false
 		for _, root := range roots {
 			allClean = allClean && !root.Dirty

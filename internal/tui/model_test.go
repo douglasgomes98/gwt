@@ -108,8 +108,9 @@ func TestPaletteOnlyShowsValidCLICommands(t *testing.T) {
 		t.Fatalf("feature actions without tools: %v", got)
 	}
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m.config = config.Config{Editor: "code", Agent: "claude"}
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionOpen, actionOpenEditor, actionOpenAgent, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
 	}
 }
@@ -123,12 +124,12 @@ func TestRootPaletteHidesActionsThatCannotRun(t *testing.T) {
 		{
 			name:  "dirty root",
 			items: []worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true}},
-			want:  []action{actionAdd, actionPrune, actionDiscard},
+			want:  []action{actionAdd, actionPrune, actionOpen, actionDiscard},
 		},
 		{
 			name:  "clean non-base root",
 			items: []worktree.Item{{Repo: "api", Branch: "feature", Path: "/api", Primary: true}},
-			want:  []action{actionAdd, actionPrune, actionCheckoutBase},
+			want:  []action{actionAdd, actionPrune, actionOpen, actionCheckoutBase},
 		},
 		{
 			name: "mixed roots",
@@ -559,6 +560,22 @@ func TestOpenSelectedRunsConfiguredCommandAndRejectsEmptySelection(t *testing.T)
 	result = m.openSelected(actionOpenAgent)().(operationResult)
 	if result.err != nil || !result.reload {
 		t.Fatalf("agent result: %#v", result)
+	}
+	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: t.TempDir(), Primary: true}})
+	m.selected[m.items[0].Path] = true
+	m.config = config.Config{Editor: "true", Agent: "true"}
+	result = m.openSelected(actionOpenEditor)().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("root editor result: %#v", result)
+	}
+	result = m.openSelected(actionOpenAgent)().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("root agent result: %#v", result)
+	}
+	t.Setenv("SHELL", "true")
+	result = m.openSelected(actionOpen)().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("root shell result: %#v", result)
 	}
 	m.clearSelection()
 	result = m.openSelected(actionOpen)().(operationResult)
