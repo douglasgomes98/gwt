@@ -196,6 +196,9 @@ func (m Model) handleConfirmation(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		if m.pending == actionDiscard {
 			return m, tea.Batch(tick, m.discardSelectedRoots())
 		}
+		if m.pending == actionRemoveAll && len(m.selectedRoots()) > 0 {
+			return m, tea.Batch(tick, m.removeSelectedRoots())
+		}
 		return m, tea.Batch(tick, m.removeSelected())
 	}
 	return m, nil
@@ -365,6 +368,21 @@ func (m Model) removeSelected() tea.Cmd {
 			}
 		}
 		return operationResult{message: fmt.Sprintf("removed %d worktrees", len(items)), reload: true}
+	}
+}
+
+func (m Model) removeSelectedRoots() tea.Cmd {
+	roots := m.selectedRoots()
+	return func() tea.Msg {
+		removed := 0
+		for _, root := range roots {
+			count, err := worktree.RemoveAll(root.Path)
+			if err != nil {
+				return operationResult{err: partial(actionRemoveAll, err), reload: true}
+			}
+			removed += count
+		}
+		return operationResult{message: fmt.Sprintf("removed %d worktrees", removed), reload: true}
 	}
 }
 
@@ -766,7 +784,7 @@ func (m Model) availableActions() []action {
 		if len(roots) > 1 {
 			add = actionAddAll
 		}
-		actions := []action{add, actionPrune}
+		actions := []action{add, actionRemoveAll, actionPrune}
 		if len(roots) == 1 {
 			actions = append(actions, actionOpen)
 			if m.config.Editor != "" {

@@ -99,6 +99,48 @@ func TestRemoveRejectsDetachedWorktree(t *testing.T) {
 	}
 }
 
+func TestRemoveAllRemovesOnlyNonPrimaryWorktrees(t *testing.T) {
+	r := repo(t)
+	for _, branch := range []string{"AG-1", "AG-2"} {
+		if _, err := worktree.Add(r, branch, "main", config.Config{Layout: "sibling"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, err := worktree.RemoveAll(r)
+	if err != nil || removed != 2 {
+		t.Fatalf("RemoveAll: %d, %v", removed, err)
+	}
+	items, err := worktree.ListFast(r)
+	if err != nil || len(items) != 1 || !items[0].Primary {
+		t.Fatalf("items: %#v, %v", items, err)
+	}
+}
+
+func TestRemoveAllRejectsDetachedWorktreeBeforeRemovingOthers(t *testing.T) {
+	r := repo(t)
+	first, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := worktree.Add(r, "AG-2", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	git(t, second, "checkout", "--detach")
+	if _, err := worktree.RemoveAll(r); err == nil || !strings.Contains(err.Error(), "detached") {
+		t.Fatalf("RemoveAll error: %v", err)
+	}
+	if _, err := os.Stat(first); err != nil {
+		t.Fatalf("non-detached worktree removed: %v", err)
+	}
+}
+
+func TestRemoveAllRejectsNonRepository(t *testing.T) {
+	if _, err := worktree.RemoveAll(t.TempDir()); err == nil {
+		t.Fatal("RemoveAll accepted a non-repository")
+	}
+}
+
 func TestPathLayouts(t *testing.T) {
 	r := "/tmp/projects/api"
 	if got := worktree.Path(r, "AG-1", config.Config{Layout: "inside"}); got != "/tmp/projects/api/.worktrees/AG-1" {

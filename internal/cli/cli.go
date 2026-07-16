@@ -107,6 +107,7 @@ Commands:
   add <branch> [base] [-e|-a] [--all]  Create a worktree.
   open <branch> [-e|-a]                Open a worktree.
   rm <branch> [--all]                  Remove a worktree.
+  rm --all                             Remove all worktrees in the current root.
   list                                 List worktrees.
   prune                                Prune stale worktrees.
   update                               Update the current root.
@@ -235,8 +236,16 @@ func (a App) remove(args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(values) == 0 && flags["--all"] {
+		repo, err := worktree.CurrentRepo(a.Dir)
+		if err != nil {
+			return err
+		}
+		_, err = worktree.RemoveAll(repo)
+		return err
+	}
 	if len(values) != 1 {
-		return fmt.Errorf("usage: gwt rm <branch> [--all]")
+		return fmt.Errorf("usage: gwt rm <branch> [--all] | gwt rm --all")
 	}
 	if !flags["--all"] {
 		repo, err := worktree.CurrentRepo(a.Dir)
