@@ -137,6 +137,7 @@ func primary(dir string) bool {
 
 func Path(repo, branch string, c config.Config) string {
 	parent, name := filepath.Dir(repo), filepath.Base(repo)
+	branch = strings.ReplaceAll(branch, "/", "-")
 	switch c.Layout {
 	case "inside":
 		return filepath.Join(repo, ".worktrees", branch)

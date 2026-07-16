@@ -149,6 +149,15 @@ func TestPathLayouts(t *testing.T) {
 	if got := worktree.Path(r, "AG-1", config.Config{Layout: "grouped"}); got != "/tmp/projects/api.worktrees/api.AG-1" {
 		t.Fatal(got)
 	}
+	if got := worktree.Path(r, "feat/add-user", config.Config{Layout: "inside"}); got != "/tmp/projects/api/.worktrees/feat-add-user" {
+		t.Fatal(got)
+	}
+	if got := worktree.Path(r, "feat/add-user", config.Config{Layout: "grouped"}); got != "/tmp/projects/api.worktrees/api.feat-add-user" {
+		t.Fatal(got)
+	}
+	if got := worktree.Path(r, "feat/add-user", config.Config{Layout: "sibling"}); got != "/tmp/projects/api.feat-add-user" {
+		t.Fatal(got)
+	}
 }
 
 func TestCurrentRepoFromLinkedWorktree(t *testing.T) {
