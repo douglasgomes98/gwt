@@ -5,17 +5,17 @@ builds:
     main: ./cmd/gwt
     goos: [darwin]
     goarch: [amd64, arm64]
-    ldflags: [-s -w -X main.version={{ .Version }}]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
   - id: linux
     main: ./cmd/gwt
     goos: [linux]
     goarch: [amd64, arm64]
-    ldflags: [-s -w -X main.version={{ .Version }}]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
   - id: windows
     main: ./cmd/gwt
     goos: [windows]
     goarch: [amd64]
-    ldflags: [-s -w -X main.version={{ .Version }}]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
 archives:
   - id: darwin
     ids: [darwin]
