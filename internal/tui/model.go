@@ -651,7 +651,11 @@ func (m Model) renderPalette(b *strings.Builder) {
 			if i == m.pCursor {
 				mark = "›"
 			}
-			b.WriteString(mark + " " + actionLabel(action) + "\n")
+			label := actionLabel(action)
+			if action == actionRemoveAll && len(m.selectedRoots()) > 0 {
+				label = "remove all worktrees"
+			}
+			b.WriteString(mark + " " + label + "\n")
 		}
 		b.WriteString(keyHint("enter", "select", "1;38;5;114", "0") + "  " + keyHint("esc", "close", "2", "2"))
 	} else if !m.input && !m.confirm {

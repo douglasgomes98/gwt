@@ -182,6 +182,16 @@ func TestActionLabelsAreDescriptiveAndLowercase(t *testing.T) {
 	}
 }
 
+func TestRootPaletteLabelsRootRemovalExplicitly(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m.selected["/api"] = true
+	m.palette = true
+	if !strings.Contains(m.View().Content, "remove all worktrees") {
+		t.Fatalf("palette: %q", m.View().Content)
+	}
+}
+
 func TestMultipleRootsAndFeaturesUseBatchCommands(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}, {Repo: "web", Branch: "main", Path: "/web", Primary: true}})
 	m = press(m, "space")
