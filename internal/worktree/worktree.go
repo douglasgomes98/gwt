@@ -185,6 +185,29 @@ func Remove(repo, branch string) error {
 	return err
 }
 
+func RemoveAll(repo string) (int, error) {
+	items, err := ListFast(repo)
+	if err != nil {
+		return 0, err
+	}
+	for _, item := range items {
+		if item.Detached {
+			return 0, fmt.Errorf("refusing to remove detached worktree")
+		}
+	}
+	removed := 0
+	for _, item := range items {
+		if item.Primary {
+			continue
+		}
+		if _, err := git.Run(repo, "worktree", "remove", "--force", "--force", item.Path); err != nil {
+			return removed, err
+		}
+		removed++
+	}
+	return removed, nil
+}
+
 func Fetch(repo, base string) error { _, err := git.Run(repo, "fetch", "origin", base); return err }
 func Prune(repo string) error       { _, err := git.Run(repo, "worktree", "prune"); return err }
 

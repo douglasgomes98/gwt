@@ -36,3 +36,10 @@ Do not use `gwt open` to change the current agent's directory: it starts a child
 - Run `gwt update` or `gwt checkout-base` only for a clean primary checkout.
 - Never run `gwt rm`, `gwt discard`, `git reset --hard`, or `git clean` without explicit user approval; explain the target paths and data that will be removed first.
 - Do not remove a primary checkout. `gwt` blocks this, but confirm the branch and path before any deletion.
+
+## Removing worktrees
+
+- `gwt rm <branch>` removes that branch from the current repository.
+- `gwt rm <branch> --all` removes that branch from sibling repositories where it exists.
+- `gwt rm --all` removes every non-primary worktree from the current repository. Use it only after the user explicitly confirms that root; it rejects the operation if any worktree is detached.
+- In the TUI, select a root and choose `rm --all`; confirm the prompt before deletion.
