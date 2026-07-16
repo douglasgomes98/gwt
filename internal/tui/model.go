@@ -579,15 +579,19 @@ func (m Model) renderRows(b *strings.Builder) {
 		if m.feature != "" && branch == m.feature {
 			header = style("1;38;5;141", branch) + "  " + style("1;38;5;114", fmt.Sprintf("%s selected", worktreeCount(len(m.selectedFeatureItems()))))
 		}
-		b.WriteString(header + "\n")
+		b.WriteString(header)
+		b.WriteByte('\n')
 		m.renderItemRows(b, groups[branch])
 	}
 	if len(roots) > 0 {
-		b.WriteString("roots  " + style("2", rootCount(len(roots))) + "\n")
+		b.WriteString("roots  ")
+		b.WriteString(style("2", rootCount(len(roots))))
+		b.WriteByte('\n')
 		m.renderItemRows(b, roots)
 	}
 	if len(m.items) == 0 {
-		b.WriteString(style("2", "(no worktrees)") + "\n")
+		b.WriteString(style("2", "(no worktrees)"))
+		b.WriteByte('\n')
 	}
 }
 
@@ -613,7 +617,8 @@ func (m Model) renderItemRows(b *strings.Builder, rows []int) {
 		if selected {
 			row = highlight(row)
 		}
-		b.WriteString(row + "\n")
+		b.WriteString(row)
+		b.WriteByte('\n')
 	}
 }
 
@@ -625,10 +630,14 @@ func (m Model) renderStatus(b *strings.Builder) {
 	if m.busy != "" {
 		status = fmt.Sprintf("%s %s", spinnerFrames[m.spinner], operationLabel(m.busy))
 	}
-	b.WriteString("\n" + style("2", status))
+	b.WriteByte('\n')
+	b.WriteString(style("2", status))
 	if m.input {
 		b.WriteString(m.branch)
-		b.WriteString("  " + keyHint("enter", "create", "1;38;5;114", "0") + "  " + keyHint("esc", "cancel", "2", "2"))
+		b.WriteString("  ")
+		b.WriteString(keyHint("enter", "create", "1;38;5;114", "0"))
+		b.WriteString("  ")
+		b.WriteString(keyHint("esc", "cancel", "2", "2"))
 	}
 }
 
@@ -640,13 +649,20 @@ func (m Model) renderConfirmation(b *strings.Builder) {
 			prompt = "discard all local changes in selected roots?"
 			promptStyle = "1;38;5;203"
 		}
-		b.WriteString("\n" + style(promptStyle, prompt) + "  " + keyHint("enter/y", "confirm", "1;38;5;114", "0") + "  " + keyHint("esc/n", "cancel", "2", "2"))
+		b.WriteByte('\n')
+		b.WriteString(style(promptStyle, prompt))
+		b.WriteString("  ")
+		b.WriteString(keyHint("enter/y", "confirm", "1;38;5;114", "0"))
+		b.WriteString("  ")
+		b.WriteString(keyHint("esc/n", "cancel", "2", "2"))
 	}
 }
 
 func (m Model) renderPalette(b *strings.Builder) {
 	if m.palette {
-		b.WriteString("\n\n" + style("1", "commands") + "\n")
+		b.WriteString("\n\n")
+		b.WriteString(style("1", "commands"))
+		b.WriteByte('\n')
 		for i, action := range m.availableActions() {
 			mark := " "
 			if i == m.pCursor {
@@ -656,14 +672,23 @@ func (m Model) renderPalette(b *strings.Builder) {
 			if action == actionRemoveAll && len(m.selectedRoots()) > 0 {
 				label = "remove all worktrees"
 			}
-			b.WriteString(mark + " " + label + "\n")
+			b.WriteString(mark)
+			b.WriteString(" ")
+			b.WriteString(label)
+			b.WriteByte('\n')
 		}
-		b.WriteString(keyHint("enter", "select", "1;38;5;114", "0") + "  " + keyHint("esc", "close", "2", "2"))
+		b.WriteString(keyHint("enter", "select", "1;38;5;114", "0"))
+		b.WriteString("  ")
+		b.WriteString(keyHint("esc", "close", "2", "2"))
 	} else if !m.input && !m.confirm {
 		if len(m.availableActions()) == 0 {
-			b.WriteString("\n" + keyHint("q/esc", "quit", "2", "2"))
+			b.WriteByte('\n')
+			b.WriteString(keyHint("q/esc", "quit", "2", "2"))
 		} else {
-			b.WriteString("\n" + keyHint("enter", "commands", "1;38;5;114", "0") + "  " + keyHint("q", "quit", "2", "2"))
+			b.WriteByte('\n')
+			b.WriteString(keyHint("enter", "commands", "1;38;5;114", "0"))
+			b.WriteString("  ")
+			b.WriteString(keyHint("q", "quit", "2", "2"))
 		}
 	}
 }
