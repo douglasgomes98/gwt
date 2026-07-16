@@ -54,6 +54,11 @@ opening a pull request.
 For every added or modified feature, review the README and update it when
 needed so new users can discover and use the behavior.
 
+When a user-visible CLI command or TUI action changes, update `gwt help`, the
+README, and `internal/cli/assets/gwt-worktrees/SKILL.md`. That embedded skill
+is the versioned source installed by `gwt skill install`; do not maintain a
+second project-local copy.
+
 ## Commit & Pull Request Guidelines
 
 Follow the existing Conventional Commit style: `fix(tui): open shell in selected

@@ -22,6 +22,18 @@ func TestLoadDefaultsAndOptionalCommands(t *testing.T) {
 	}
 }
 
+func TestLoadAppliesAllConfiguredFields(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte("layout: inside\nbaseBranch: feature/test\neditor: vim\nagent: codex\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	want := Config{Layout: "inside", BaseBranch: "feature/test", Editor: "vim", Agent: "codex"}
+	if err != nil || got != want {
+		t.Fatalf("got %+v, %v; want %+v", got, err, want)
+	}
+}
+
 func TestLoadDefaultsForEmptyLocalConfig(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), nil, 0600); err != nil {

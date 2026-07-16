@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/douglasgomes98/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/worktree"
 )
 
 func testRepo(t *testing.T) string {
@@ -110,6 +111,23 @@ func TestRemoveAllPrevalidatesPrimary(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), filepath.Base(dir)+".AG-1")); err != nil {
 		t.Fatalf("worktree removed before validation: %v", err)
+	}
+}
+
+func TestRemoveAllWithoutBranchRemovesCurrentRootWorktrees(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	for _, branch := range []string{"AG-1", "AG-2"} {
+		if err := a.Run([]string{"add", branch}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.Run([]string{"rm", "--all"}); err != nil {
+		t.Fatal(err)
+	}
+	items, err := worktree.ListFast(dir)
+	if err != nil || len(items) != 1 || !items[0].Primary {
+		t.Fatalf("items: %#v, %v", items, err)
 	}
 }
 
@@ -542,8 +560,18 @@ func TestHelpListsCommands(t *testing.T) {
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "init-config                          Create a local configuration file.") || !strings.Contains(got, "skill install --agents|--claude") || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
+	got := out.String()
+	add := strings.Index(strings.Split(got, "\n")[3], "Create a worktree.")
+	skill := strings.Index(strings.Split(got, "\n")[11], "Install the gwt worktree skill for agents.")
+	if got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config") || !strings.Contains(got, "skill install --agents|--claude") || !strings.Contains(got, "upgrade") || add < 0 || skill < 0 || add != skill {
 		t.Fatalf("unexpected help: %q", got)
+	}
+}
+
+func TestHelpReportsOutputError(t *testing.T) {
+	err := New(failingWriter{}, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"help"})
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("error = %v", err)
 	}
 }
 

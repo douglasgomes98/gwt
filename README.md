@@ -62,6 +62,9 @@ gwt rm AG-123
 # removes AG-123 from all sibling repositories with that branch
 gwt rm AG-123 --all
 
+# removes every non-primary worktree in the current repository
+gwt rm --all
+
 # updates the current repository's primary checkout
 gwt update
 
@@ -92,6 +95,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt add <branch> [base] [--all] [-e\|-a]` | Creates a worktree. `--all` creates one in sibling repositories. |
 | `gwt open <branch> [-e\|-a]` | Opens a subshell (default), editor, or agent. |
 | `gwt rm <branch> [--all]` | Force-removes the current worktree or the same branch from sibling repositories. The primary checkout is never removed. |
+| `gwt rm --all` | Force-removes every non-primary worktree in the current repository. |
 | `gwt list` | Lists worktrees in the current repository. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update` | Updates the current repository's clean primary checkout on the base branch. |
@@ -112,7 +116,7 @@ The opening flags are mutually exclusive:
 | Key | Action |
 | --- | --- |
 | `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
-| `Enter` | Opens the contextual palette. A single selected root can be opened with the shell, editor, or agent; a group of selected worktrees can be opened in the editor. Root maintenance actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots. |
+| `Enter` | Opens the contextual palette. A single selected root can be opened with the shell, editor, or agent; a group of selected worktrees can be opened in the editor. Root maintenance actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. `rm --all` removes every non-primary worktree in selected roots after confirmation. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots. |
 | `j` / `k` or arrows | Moves focus in the list or palette. |
 | `Esc` | Closes the palette without clearing the selection. |
 | `q` | Quits. |
@@ -186,8 +190,9 @@ primary-checkout protection.
 ## Removal safety
 
 `gwt rm` is deliberately non-interactive and uses forced removal, like the
-alias workflow it replaces. Review uncommitted changes before confirming a
-removal in the TUI or running `gwt rm`.
+alias workflow it replaces. `gwt rm --all` never removes the primary checkout
+and rejects a root containing a detached worktree. Review uncommitted changes
+before confirming a removal in the TUI or running `gwt rm`.
 
 ## License
 

@@ -124,7 +124,7 @@ func TestPaletteOnlyShowsValidCLICommands(t *testing.T) {
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
 	m.config = config.Config{Editor: "code", Agent: "claude"}
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAdd, actionPrune, actionOpen, actionOpenEditor, actionOpenAgent, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAdd, actionRemoveAll, actionPrune, actionOpen, actionOpenEditor, actionOpenAgent, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
 	}
 }
@@ -138,12 +138,12 @@ func TestRootPaletteHidesActionsThatCannotRun(t *testing.T) {
 		{
 			name:  "dirty root",
 			items: []worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true}},
-			want:  []action{actionAdd, actionPrune, actionOpen, actionDiscard},
+			want:  []action{actionAdd, actionRemoveAll, actionPrune, actionOpen, actionDiscard},
 		},
 		{
 			name:  "clean non-base root",
 			items: []worktree.Item{{Repo: "api", Branch: "feature", Path: "/api", Primary: true}},
-			want:  []action{actionAdd, actionPrune, actionOpen, actionCheckoutBase},
+			want:  []action{actionAdd, actionRemoveAll, actionPrune, actionOpen, actionCheckoutBase},
 		},
 		{
 			name: "mixed roots",
@@ -151,7 +151,7 @@ func TestRootPaletteHidesActionsThatCannotRun(t *testing.T) {
 				{Repo: "api", Branch: "main", Path: "/api", Primary: true},
 				{Repo: "web", Branch: "main", Path: "/web", Primary: true, Dirty: true},
 			},
-			want: []action{actionAddAll, actionPrune, actionDiscard},
+			want: []action{actionAddAll, actionRemoveAll, actionPrune, actionDiscard},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -182,12 +182,22 @@ func TestActionLabelsAreDescriptiveAndLowercase(t *testing.T) {
 	}
 }
 
+func TestRootPaletteLabelsRootRemovalExplicitly(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}})
+	m.selected["/api"] = true
+	m.palette = true
+	if !strings.Contains(m.View().Content, "remove all worktrees") {
+		t.Fatalf("palette: %q", m.View().Content)
+	}
+}
+
 func TestMultipleRootsAndFeaturesUseBatchCommands(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true}, {Repo: "web", Branch: "main", Path: "/web", Primary: true}})
 	m = press(m, "space")
 	m.cursor = 1
 	m = press(m, "space")
-	if got, want := m.availableActions(), []action{actionAddAll, actionPrune, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
+	if got, want := m.availableActions(), []action{actionAddAll, actionRemoveAll, actionPrune, actionUpdate, actionCheckoutBase}; !slices.Equal(got, want) {
 		t.Fatalf("root actions: %v", got)
 	}
 	m = modelWith([]worktree.Item{{Repo: "api", Branch: "AG-1", Path: "/api.A"}, {Repo: "web", Branch: "AG-1", Path: "/web.A"}})
@@ -305,6 +315,56 @@ func TestRootManagementActionsDispatchAndLabel(t *testing.T) {
 	updated, cmd := m.Update(tea.KeyPressMsg{Text: "enter"})
 	if cmd == nil || updated.(Model).busy != actionDiscard {
 		t.Fatalf("discard confirmation: %#v", updated)
+	}
+}
+
+func TestRootRemovalRequiresConfirmationAndRemovesAllWorktrees(t *testing.T) {
+	parent := t.TempDir()
+	api := tuiTestRepo(t, parent, "api")
+	first, err := worktree.Add(api, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := worktree.Add(api, "AG-2", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "main", Path: api, Primary: true},
+		{Repo: "api", Branch: "AG-1", Path: first},
+		{Repo: "api", Branch: "AG-2", Path: second},
+	})
+	m.selected[api] = true
+	if !slices.Contains(m.availableActions(), actionRemoveAll) {
+		t.Fatalf("root actions: %v", m.availableActions())
+	}
+	m, _ = m.execute(actionRemoveAll)
+	if !m.confirm || m.pending != actionRemoveAll {
+		t.Fatalf("remove state: %#v", m)
+	}
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "enter"})
+	m = updated.(Model)
+	if cmd == nil || m.busy != actionRemoveAll {
+		t.Fatalf("confirmation state: %#v", m)
+	}
+	result := m.removeSelectedRoots()().(operationResult)
+	if result.err != nil || !result.reload {
+		t.Fatalf("remove result: %#v", result)
+	}
+	for _, path := range []string{first, second} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("worktree remained: %s: %v", path, err)
+		}
+	}
+}
+
+func TestRootRemovalReportsPartialError(t *testing.T) {
+	root := t.TempDir()
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: root, Primary: true}})
+	m.selected[root] = true
+	result := m.removeSelectedRoots()().(operationResult)
+	if result.err == nil || !strings.Contains(result.err.Error(), "result may be partial") {
+		t.Fatalf("remove result: %#v", result)
 	}
 }
 
@@ -522,13 +582,13 @@ func TestPaletteAndNavigationBounds(t *testing.T) {
 	}
 	m = press(m, "space")
 	m = press(m, "enter")
-	for range 4 {
+	for range 10 {
 		m = press(m, "down")
 	}
 	if m.pCursor != len(m.availableActions())-1 {
 		t.Fatalf("palette cursor: %d", m.pCursor)
 	}
-	for range 4 {
+	for range 10 {
 		m = press(m, "up")
 	}
 	if m.pCursor != 0 {
