@@ -111,11 +111,11 @@ Commands:
   rm --all	Remove all worktrees in the current root.
   list	List worktrees.
   prune	Prune stale worktrees.
-  update	Update the current root.
+  update [--all]	Update clean roots on the base branch.
   upgrade	Upgrade gwt.
   skill install --agents|--claude	Install the gwt worktree skill for agents.
   init-config	Create a local configuration file.
-  checkout-base	Checkout the base branch in the current root.
+  checkout-base [--all]	Checkout the base branch in clean roots.
   discard	Discard all local changes in the current root.
   version	Show the version.
   help	Show this help.
@@ -338,8 +338,26 @@ func (a App) prune(args []string) error {
 	return nil
 }
 func (a App) update(args []string) error {
-	if len(args) != 0 {
-		return fmt.Errorf("usage: gwt update")
+	flags, values, err := parse(args, "--all")
+	if err != nil || len(values) != 0 {
+		return fmt.Errorf("usage: gwt update [--all]")
+	}
+	if flags["--all"] {
+		repos, err := worktree.Repos(a.Dir)
+		if err != nil {
+			return err
+		}
+		for _, repo := range repos {
+			if err := worktree.ValidateUpdate(repo, a.Config.BaseBranch); err != nil {
+				return err
+			}
+		}
+		for _, repo := range repos {
+			if err := worktree.Update(repo, a.Config.BaseBranch); err != nil {
+				return fmt.Errorf("update --all: result may be partial: %w", err)
+			}
+		}
+		return nil
 	}
 	repo, err := worktree.CurrentRepo(a.Dir)
 	if err != nil {
@@ -349,8 +367,26 @@ func (a App) update(args []string) error {
 }
 
 func (a App) checkoutBase(args []string) error {
-	if len(args) != 0 {
-		return fmt.Errorf("usage: gwt checkout-base")
+	flags, values, err := parse(args, "--all")
+	if err != nil || len(values) != 0 {
+		return fmt.Errorf("usage: gwt checkout-base [--all]")
+	}
+	if flags["--all"] {
+		repos, err := worktree.Repos(a.Dir)
+		if err != nil {
+			return err
+		}
+		for _, repo := range repos {
+			if err := worktree.ValidateCheckoutBase(repo); err != nil {
+				return err
+			}
+		}
+		for _, repo := range repos {
+			if err := worktree.CheckoutBase(repo, a.Config.BaseBranch); err != nil {
+				return fmt.Errorf("checkout-base --all: result may be partial: %w", err)
+			}
+		}
+		return nil
 	}
 	repo, err := worktree.CurrentRepo(a.Dir)
 	if err != nil {

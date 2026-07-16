@@ -59,6 +59,10 @@ README, and `internal/cli/assets/gwt-worktrees/SKILL.md`. That embedded skill
 is the versioned source installed by `gwt skill install`; do not maintain a
 second project-local copy.
 
+For every change to a worktree operation, assess CLI/TUI parity before
+implementation. Add the behavior to both interfaces when it fits both; when
+it is interface-specific, record the reason in the pull request description.
+
 ## Commit & Pull Request Guidelines
 
 Follow the existing Conventional Commit style: `fix(tui): open shell in selected
