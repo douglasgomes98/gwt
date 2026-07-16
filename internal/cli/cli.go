@@ -101,27 +101,31 @@ func (a App) help(args []string) error {
 	if len(args) != 0 {
 		return fmt.Errorf("usage: gwt help")
 	}
-	_, err := fmt.Fprint(a.Out, `Usage: gwt <command>
+	tw := tabwriter.NewWriter(a.Out, 0, 0, 2, ' ', 0)
+	_, err := fmt.Fprint(tw, `Usage: gwt <command>
 
 Commands:
-  add <branch> [base] [-e|-a] [--all]  Create a worktree.
-  open <branch> [-e|-a]                Open a worktree.
-  rm <branch> [--all]                  Remove a worktree.
-  rm --all                             Remove all worktrees in the current root.
-  list                                 List worktrees.
-  prune                                Prune stale worktrees.
-  update                               Update the current root.
-  upgrade                              Upgrade gwt.
-  skill install --agents|--claude       Install the gwt worktree skill for agents.
-  init-config                          Create a local configuration file.
-  checkout-base                        Checkout the base branch in the current root.
-  discard                              Discard all local changes in the current root.
-  version                              Show the version.
-  help                                 Show this help.
+  add <branch> [base] [-e|-a] [--all]	Create a worktree.
+  open <branch> [-e|-a]	Open a worktree.
+  rm <branch> [--all]	Remove a worktree.
+  rm --all	Remove all worktrees in the current root.
+  list	List worktrees.
+  prune	Prune stale worktrees.
+  update	Update the current root.
+  upgrade	Upgrade gwt.
+  skill install --agents|--claude	Install the gwt worktree skill for agents.
+  init-config	Create a local configuration file.
+  checkout-base	Checkout the base branch in the current root.
+  discard	Discard all local changes in the current root.
+  version	Show the version.
+  help	Show this help.
 
 Run gwt without a command to open the TUI.
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	return tw.Flush()
 }
 
 func (a App) initConfig(args []string) error {

@@ -560,7 +560,10 @@ func TestHelpListsCommands(t *testing.T) {
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := out.String(); got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config                          Create a local configuration file.") || !strings.Contains(got, "skill install --agents|--claude") || !strings.Contains(got, "upgrade                              Upgrade gwt.") {
+	got := out.String()
+	add := strings.Index(strings.Split(got, "\n")[3], "Create a worktree.")
+	skill := strings.Index(strings.Split(got, "\n")[11], "Install the gwt worktree skill for agents.")
+	if got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config") || !strings.Contains(got, "skill install --agents|--claude") || !strings.Contains(got, "upgrade") || add < 0 || skill < 0 || add != skill {
 		t.Fatalf("unexpected help: %q", got)
 	}
 }
