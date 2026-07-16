@@ -34,7 +34,7 @@ Do not use `gwt open` to change the current agent's directory: it starts a child
 - Use `gwt add <branch> [base]`; pass `--all` only when the task genuinely spans sibling repositories.
 - Use `gwt prune` only to clean stale Git worktree metadata.
 - Run `gwt update` or `gwt checkout-base` only for a clean primary checkout.
-- Never run `gwt rm`, `gwt discard`, `git reset --hard`, or `git clean` without explicit user approval; explain the target paths and data that will be removed first.
+- Never run `gwt rm`, `gwt discard`, `git reset --hard`, or `git clean` without explicit user approval; explain the target paths and data that will be removed first. `gwt discard` also recursively discards changes in initialized submodules.
 - Do not remove a primary checkout. `gwt` blocks this, but confirm the branch and path before any deletion.
 
 ## Removing worktrees
