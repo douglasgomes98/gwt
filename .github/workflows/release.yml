@@ -32,7 +32,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
-          args: --version
+          install-only: true
       - run: make test
       - run: make coverage
       - run: goreleaser check
