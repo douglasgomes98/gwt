@@ -278,6 +278,12 @@ func Discard(path string) error {
 	if _, err := git.Run(path, "reset", "--hard"); err != nil {
 		return err
 	}
-	_, err = git.Run(path, "clean", "-fdx")
+	if _, err := git.Run(path, "submodule", "foreach", "--recursive", "git", "reset", "--hard"); err != nil {
+		return err
+	}
+	if _, err := git.Run(path, "clean", "-fdx"); err != nil {
+		return err
+	}
+	_, err = git.Run(path, "submodule", "foreach", "--recursive", "git", "clean", "-fdx")
 	return err
 }
