@@ -568,6 +568,13 @@ func TestHelpListsCommands(t *testing.T) {
 	}
 }
 
+func TestHelpReportsOutputError(t *testing.T) {
+	err := New(failingWriter{}, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"help"})
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestInitConfigCreatesLocalConfig(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
