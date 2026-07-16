@@ -358,6 +358,33 @@ func TestOpenUsesShellForExistingWorktree(t *testing.T) {
 	}
 }
 
+func TestOpenRootAliasUsesPrimaryWithEveryMode(t *testing.T) {
+	dir := testRepo(t)
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	output := filepath.Join(t.TempDir(), "cwd")
+	launcher := filepath.Join(t.TempDir(), "launcher")
+	if err := os.WriteFile(launcher, []byte("#!/bin/sh\nprintf %s \"$PWD\" > \"$GWT_OPEN_ROOT_PATH\"\n"), 0700); err != nil { // #nosec G306 -- test script must be executable.
+		t.Fatal(err)
+	}
+	t.Setenv("GWT_OPEN_ROOT_PATH", output)
+	t.Setenv("SHELL", launcher)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main", Editor: launcher, Agent: launcher})
+	if err := a.Run([]string{"add", "root"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"open", "root"}, {"open", "root", "-e"}, {"open", "root", "-a"}} {
+		if err := a.Run(args); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		got, err := os.ReadFile(output) // #nosec G304 -- test reads its generated temporary output.
+		if err != nil || string(got) != dir {
+			t.Fatalf("%v opened %q, %v; want %q", args, got, err, dir)
+		}
+	}
+}
+
 func TestOpenConfiguredCommandsAndUsageErrors(t *testing.T) {
 	dir := testRepo(t)
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main", Editor: "true", Agent: "true"})

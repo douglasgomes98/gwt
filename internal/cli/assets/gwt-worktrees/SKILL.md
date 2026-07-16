@@ -26,7 +26,7 @@ For the same branch in all sibling repositories, use `--all`; `gwt add` prints o
 gwt add AG-123 --all
 ```
 
-Do not use `gwt open` to change the current agent's directory: it starts a child shell. Use the path emitted by `gwt add` or the `PATH` column from `gwt list`, then `cd` directly.
+Do not use `gwt open` to change the current agent's directory: it starts a child shell. Use the path emitted by `gwt add` or the `PATH` column from `gwt list`, then `cd` directly. `gwt open root` opens the primary checkout when a child shell, editor, or agent is needed.
 
 ## Safe operations
 
