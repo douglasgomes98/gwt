@@ -56,6 +56,9 @@ gwt add AG-123 --all
 # opens a subshell in the worktree
 gwt open AG-123
 
+# opens a subshell in the primary checkout
+gwt open root
+
 # removes the current repository's worktree without confirmation
 gwt rm AG-123
 
@@ -93,7 +96,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | --- | --- |
 | `gwt` | Opens the TUI. |
 | `gwt add <branch> [base] [--all] [-e\|-a]` | Creates a worktree. `--all` creates one in sibling repositories. |
-| `gwt open <branch> [-e\|-a]` | Opens a subshell (default), editor, or agent. |
+| `gwt open <branch\|root> [-e\|-a]` | Opens a subshell (default), editor, or agent. `root` opens the primary checkout. |
 | `gwt rm <branch> [--all]` | Force-removes the current worktree or the same branch from sibling repositories. The primary checkout is never removed. |
 | `gwt rm --all` | Force-removes every non-primary worktree in the current repository. |
 | `gwt list` | Lists worktrees in the current repository. |

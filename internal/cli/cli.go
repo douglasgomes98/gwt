@@ -106,7 +106,7 @@ func (a App) help(args []string) error {
 
 Commands:
   add <branch> [base] [-e|-a] [--all]	Create a worktree.
-  open <branch> [-e|-a]	Open a worktree.
+  open <branch|root> [-e|-a]	Open a worktree.
   rm <branch> [--all]	Remove a worktree.
   rm --all	Remove all worktrees in the current root.
   list	List worktrees.
@@ -209,7 +209,7 @@ func (a App) open(args []string) error {
 		return err
 	}
 	if exclusive(flags, "-e", "-a") || len(values) != 1 {
-		return fmt.Errorf("usage: gwt open <branch> [-e|-a]")
+		return fmt.Errorf("usage: gwt open <branch|root> [-e|-a]")
 	}
 	repo, err := worktree.CurrentRepo(a.Dir)
 	if err != nil {
@@ -220,7 +220,11 @@ func (a App) open(args []string) error {
 		return err
 	}
 	for _, item := range items {
-		if item.Branch == values[0] {
+		match := item.Branch == values[0]
+		if values[0] == "root" {
+			match = item.Primary
+		}
+		if match {
 			if item.Detached {
 				return fmt.Errorf("refusing to open detached worktree")
 			}
