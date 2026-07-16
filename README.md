@@ -105,7 +105,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt upgrade` | Updates the installed CLI through Homebrew or Go. |
 | `gwt skill install --agents|--claude` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
 | `gwt checkout-base` | Checks out the base branch in the current repository's clean primary checkout. |
-| `gwt discard` | Discards all local changes in the current repository's primary checkout: tracked, untracked, and ignored. |
+| `gwt discard` | Discards all local changes in the current repository's primary checkout and initialized submodules: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |
 | `gwt version` | Shows the binary version. |
 
@@ -119,7 +119,7 @@ The opening flags are mutually exclusive:
 | Key | Action |
 | --- | --- |
 | `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
-| `Enter` | Opens the contextual palette. A single selected root can be opened with the shell, editor, or agent; a group of selected worktrees can be opened in the editor. Root maintenance actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. `rm --all` removes every non-primary worktree in selected roots after confirmation. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots. |
+| `Enter` | Opens the contextual palette. A single selected root can be opened with the shell, editor, or agent; a group of selected worktrees can be opened in the editor. Root maintenance actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. `rm --all` removes every non-primary worktree in selected roots after confirmation. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots and initialized submodules. |
 | `j` / `k` or arrows | Moves focus in the list or palette. |
 | `Esc` | Closes the palette without clearing the selection. |
 | `q` | Quits. |
