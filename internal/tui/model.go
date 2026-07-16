@@ -158,6 +158,7 @@ func (m Model) handleLoaded(result loaded) Model {
 		return m
 	}
 	m.items, m.detailed = result.items, result.detailed
+	m.cursor = min(m.cursor, max(0, len(m.items)-1))
 	m.message = fmt.Sprintf("%d worktrees", len(m.items))
 	if !m.detailed {
 		m.message += " (checking status…)"

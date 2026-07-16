@@ -429,6 +429,16 @@ func TestLoadedDetailedResultWins(t *testing.T) {
 	}
 }
 
+func TestLoadedResultClampsCursor(t *testing.T) {
+	m := modelWith(make([]worktree.Item, 9))
+	m.cursor = 8
+
+	updated, _ := m.Update(loaded{loadID: m.loadID, items: make([]worktree.Item, 8), detailed: true})
+	if got := updated.(Model).cursor; got != 7 {
+		t.Fatalf("cursor = %d, want 7", got)
+	}
+}
+
 func TestReloadIgnoresStaleDetailedStatus(t *testing.T) {
 	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true, Changes: 1}})
 	m.detailed = true
