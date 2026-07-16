@@ -82,6 +82,71 @@ func TestCommandsUseRealWorktree(t *testing.T) {
 	}
 }
 
+func TestListAllIncludesSiblingRepositories(t *testing.T) {
+	dir := testRepo(t)
+	sibling := filepath.Join(filepath.Dir(dir), "sibling")
+	initRepo(t, sibling)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "--all", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	a.Out = &out
+	if err := a.Run([]string{"list", "--all"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{dir, filepath.Join(filepath.Dir(dir), "repo.AG-1"), sibling, filepath.Join(filepath.Dir(sibling), "sibling.AG-1")} {
+		if !strings.Contains(out.String(), path) {
+			t.Fatalf("list --all missing %q: %q", path, out.String())
+		}
+	}
+}
+
+func TestListGroupIncludesCurrentBranchAcrossSiblings(t *testing.T) {
+	dir := testRepo(t)
+	sibling := filepath.Join(filepath.Dir(dir), "sibling")
+	initRepo(t, sibling)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "--all", "AG-1"}); err != nil {
+		t.Fatal(err)
+	}
+	a.Dir = sibling
+	if err := a.Run([]string{"add", "AG-2"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	a.Out, a.Dir = &out, filepath.Join(filepath.Dir(dir), "repo.AG-1")
+	if err := a.Run([]string{"list", "--group"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "AG-2") {
+		t.Fatalf("list --group included another branch: %q", out.String())
+	}
+	for _, path := range []string{filepath.Join(filepath.Dir(dir), "repo.AG-1"), filepath.Join(filepath.Dir(sibling), "sibling.AG-1")} {
+		if !strings.Contains(out.String(), path) {
+			t.Fatalf("list --group missing %q: %q", path, out.String())
+		}
+	}
+}
+
+func TestListGroupRejectsDetachedAndCombinedFlags(t *testing.T) {
+	dir := testRepo(t)
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"list", "--all", "--group"}); err == nil {
+		t.Fatal("list accepted --all and --group together")
+	}
+	cmd := exec.Command("git", "checkout", "--detach") // #nosec G204 -- test invokes Git with fixed arguments.
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	if err := a.Run([]string{"list", "--group"}); err == nil || !strings.Contains(err.Error(), "detached") {
+		t.Fatalf("list --group error = %v", err)
+	}
+}
+
 func TestAddFlagsCanAppearEitherSideButCannotMix(t *testing.T) {
 	for _, args := range [][]string{{"add", "AG-1", "-e"}, {"add", "-e", "AG-2"}} {
 		a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{Layout: "sibling", BaseBranch: "main", Editor: "true"})
@@ -196,6 +261,54 @@ func TestSkillInstallPreflightsExistingDestination(t *testing.T) {
 	}
 }
 
+func TestSkillUpdateOverwritesSelectedSkill(t *testing.T) {
+	home := t.TempDir()
+	oldHome := userHomeDir
+	userHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { userHomeDir = oldHome })
+
+	path := filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("custom"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "update", "--agents"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path) // #nosec G304 -- test reads a path built from its temp home.
+	if err != nil || !bytes.Equal(got, gwtWorktreesSkill) {
+		t.Fatalf("updated skill = %q, %v", got, err)
+	}
+}
+
+func TestSkillUpdateDoesNotRemoveEarlierDestinationOnFailure(t *testing.T) {
+	home := t.TempDir()
+	oldHome, oldOpen := userHomeDir, openSkillFile
+	userHomeDir = func() (string, error) { return home, nil }
+	calls := 0
+	openSkillFile = func(path string, flag int, perm os.FileMode) (*os.File, error) {
+		calls++
+		if calls == 2 {
+			return nil, io.ErrClosedPipe
+		}
+		return os.OpenFile(path, flag, perm) // #nosec G304 -- test uses the generated temporary destination.
+	}
+	t.Cleanup(func() {
+		userHomeDir = oldHome
+		openSkillFile = oldOpen
+	})
+
+	if err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "update", "--agents", "--claude"}); err == nil {
+		t.Fatal("skill update accepted a write failure")
+	}
+	path := filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("updated agents skill = %v", err)
+	}
+}
+
 func TestSkillInstallReportsHomeLookupFailure(t *testing.T) {
 	oldHome := userHomeDir
 	userHomeDir = func() (string, error) { return "", io.ErrUnexpectedEOF }
@@ -279,7 +392,7 @@ func TestWriteSkillDoesNotOverwriteExistingFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("custom"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeSkill(path); err == nil {
+	if err := writeSkill(path, false); err == nil {
 		t.Fatal("writeSkill overwrote an existing file")
 	}
 	got, err := os.ReadFile(path) // #nosec G304 -- test reads its temporary fixture.
@@ -589,8 +702,8 @@ func TestHelpListsCommands(t *testing.T) {
 	}
 	got := out.String()
 	add := strings.Index(strings.Split(got, "\n")[3], "Create a worktree.")
-	skill := strings.Index(strings.Split(got, "\n")[11], "Install the gwt worktree skill for agents.")
-	if got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config") || !strings.Contains(got, "skill install --agents|--claude") || !strings.Contains(got, "upgrade") || add < 0 || skill < 0 || add != skill {
+	skill := strings.Index(strings.Split(got, "\n")[11], "Install or update the gwt worktree skill for agents.")
+	if got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config") || !strings.Contains(got, "skill install|update --agents|--claude") || !strings.Contains(got, "list [--all|--group]") || !strings.Contains(got, "upgrade") || add < 0 || skill < 0 || add != skill {
 		t.Fatalf("unexpected help: %q", got)
 	}
 }
