@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/douglasgomes98/gwt/internal/config"
+	"github.com/douglasgomes98/gwt/internal/git"
 	"github.com/douglasgomes98/gwt/internal/worktree"
 	"gopkg.in/yaml.v3"
 )
@@ -109,11 +110,11 @@ Commands:
   open <branch|root> [-e|-a]	Open a worktree.
   rm <branch> [--all]	Remove a worktree.
   rm --all	Remove all worktrees in the current root.
-  list	List worktrees.
+  list [--all|--group]	List worktrees.
   prune	Prune stale worktrees.
   update [--all]	Update clean roots on the base branch.
   upgrade	Upgrade gwt.
-  skill install --agents|--claude	Install the gwt worktree skill for agents.
+  skill install|update --agents|--claude	Install or update the gwt worktree skill for agents.
   init-config	Create a local configuration file.
   checkout-base [--all]	Checkout the base branch in clean roots.
   discard	Discard all local changes in the current root and initialized submodules.
@@ -300,16 +301,47 @@ func (a App) remove(args []string) error {
 	return nil
 }
 func (a App) list(args []string) error {
-	if len(args) != 0 {
+	flags, values, err := parse(args, "--all", "--group")
+	if err != nil || len(values) != 0 || exclusive(flags, "--all", "--group") {
 		return fmt.Errorf("usage: gwt list")
 	}
-	repo, err := worktree.CurrentRepo(a.Dir)
-	if err != nil {
-		return err
-	}
-	items, err := worktree.List(repo)
-	if err != nil {
-		return err
+	var items []worktree.Item
+	if !flags["--all"] && !flags["--group"] {
+		repo, err := worktree.CurrentRepo(a.Dir)
+		if err != nil {
+			return err
+		}
+		items, err = worktree.List(repo)
+		if err != nil {
+			return err
+		}
+	} else {
+		branch := ""
+		if flags["--group"] {
+			out, err := git.Run(a.Dir, "branch", "--show-current")
+			if err != nil {
+				return err
+			}
+			branch = strings.TrimSpace(out)
+			if branch == "" {
+				return fmt.Errorf("cannot list group from detached worktree")
+			}
+		}
+		repos, err := worktree.Repos(a.Dir)
+		if err != nil {
+			return err
+		}
+		for _, repo := range repos {
+			xs, err := worktree.List(repo)
+			if err != nil {
+				return err
+			}
+			for _, x := range xs {
+				if branch == "" || x.Branch == branch {
+					items = append(items, x)
+				}
+			}
+		}
 	}
 	tw := tabwriter.NewWriter(a.Out, 0, 0, 2, ' ', 0)
 	if _, err := fmt.Fprintln(tw, "PATH\tBRANCH\tSTATUS"); err != nil {

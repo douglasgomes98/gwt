@@ -18,30 +18,36 @@ var (
 )
 
 func (a App) skill(args []string) error {
-	if len(args) == 0 || args[0] != "install" {
-		return fmt.Errorf("usage: gwt skill install --agents|--claude [--agents|--claude]")
+	if len(args) == 0 || (args[0] != "install" && args[0] != "update") {
+		return fmt.Errorf("usage: gwt skill install|update --agents|--claude [--agents|--claude]")
 	}
+	update := args[0] == "update"
 	flags, values, err := parse(args[1:], "--agents", "--claude")
 	if err != nil {
 		return err
 	}
 	if len(values) != 0 || (!flags["--agents"] && !flags["--claude"]) {
-		return fmt.Errorf("usage: gwt skill install --agents|--claude [--agents|--claude]")
+		return fmt.Errorf("usage: gwt skill install|update --agents|--claude [--agents|--claude]")
 	}
 	home, err := userHomeDir()
 	if err != nil {
 		return fmt.Errorf("find home directory: %w", err)
 	}
 	paths := skillPaths(home, flags)
-	for _, path := range paths {
-		if _, err := os.Lstat(path); err == nil {
-			return fmt.Errorf("skill already exists at %s", path)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("inspect skill destination %s: %w", path, err)
+	if !update {
+		for _, path := range paths {
+			if _, err := os.Lstat(path); err == nil {
+				return fmt.Errorf("skill already exists at %s", path)
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("inspect skill destination %s: %w", path, err)
+			}
 		}
 	}
 	var written []string
 	rollback := func() {
+		if update {
+			return
+		}
 		for _, path := range written {
 			_ = os.Remove(path)
 		}
@@ -51,7 +57,7 @@ func (a App) skill(args []string) error {
 			rollback()
 			return fmt.Errorf("create skill destination: %w", err)
 		}
-		if err := writeSkill(path); err != nil {
+		if err := writeSkill(path, update); err != nil {
 			rollback()
 			return fmt.Errorf("write skill destination: %w", err)
 		}
@@ -65,18 +71,26 @@ func (a App) skill(args []string) error {
 	return nil
 }
 
-func writeSkill(path string) error {
-	file, err := openSkillFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600) // #nosec G304 -- path is built from the user home and fixed skill destination.
+func writeSkill(path string, update bool) error {
+	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
+	if update {
+		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	}
+	file, err := openSkillFile(path, flags, 0600) // #nosec G304 -- path is built from the user home and fixed skill destination.
 	if err != nil {
 		return err
 	}
 	if _, err := file.Write(gwtWorktreesSkill); err != nil {
 		_ = file.Close()
-		_ = os.Remove(path)
+		if !update {
+			_ = os.Remove(path)
+		}
 		return err
 	}
 	if err := file.Close(); err != nil {
-		_ = os.Remove(path)
+		if !update {
+			_ = os.Remove(path)
+		}
 		return err
 	}
 	return nil

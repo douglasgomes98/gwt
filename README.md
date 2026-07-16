@@ -53,6 +53,12 @@ gwt add AG-123
 # creates AG-123 in api and web
 gwt add AG-123 --all
 
+# lists every worktree in api and web
+gwt list --all
+
+# lists only AG-123 worktrees across api and web
+gwt list --group
+
 # opens a subshell in the worktree
 gwt open AG-123
 
@@ -77,6 +83,9 @@ gwt upgrade
 # optionally install worktree guidance for agents in ~/.agents/skills
 gwt skill install --agents
 
+# replace installed guidance with the version in this gwt release
+gwt skill update --agents
+
 # install the same guidance for Claude Code in ~/.claude/skills
 gwt skill install --claude
 
@@ -100,10 +109,13 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt rm <branch> [--all]` | Force-removes the current worktree or the same branch from sibling repositories. The primary checkout is never removed. |
 | `gwt rm --all` | Force-removes every non-primary worktree in the current repository. |
 | `gwt list` | Lists worktrees in the current repository. |
+| `gwt list --all` | Lists every worktree in sibling repositories. |
+| `gwt list --group` | Lists the current branch's worktrees in sibling repositories. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update [--all]` | Updates the current repository's clean primary checkout on the base branch. `--all` updates sibling roots too. |
 | `gwt upgrade` | Updates the installed CLI through Homebrew or Go. |
 | `gwt skill install --agents|--claude` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
+| `gwt skill update --agents|--claude` | Replaces the selected `gwt-worktrees` skill with the version bundled in gwt. |
 | `gwt checkout-base [--all]` | Checks out the base branch in the current repository's clean primary checkout. `--all` applies it to sibling roots too. |
 | `gwt discard` | Discards all local changes in the current repository's primary checkout and initialized submodules: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |

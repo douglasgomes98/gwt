@@ -11,6 +11,18 @@ Use `gwt` from a repository root or its sibling-project directory. Start by chec
 gwt list
 ```
 
+To find related worktrees after entering a task checkout, use:
+
+```sh
+gwt list --group
+```
+
+It lists the current branch across sibling repositories. Use `gwt list --all`
+when you need every worktree in the group.
+
+After upgrading `gwt`, run `gwt skill update --agents` or `gwt skill update
+--claude` to replace the installed copy of this skill with the bundled version.
+
 ## Create and enter a task worktree
 
 Create one worktree in the current repository, capture the printed path, then work from that path:
@@ -30,7 +42,8 @@ Do not use `gwt open` to change the current agent's directory: it starts a child
 
 ## Safe operations
 
-- Use `gwt list` before creating a branch or deciding which worktree to enter.
+- Use `gwt list --group` to locate the current task in sibling repositories;
+  use `gwt list --all` to inspect the whole group.
 - Use `gwt add <branch> [base]`; pass `--all` only when the task genuinely spans sibling repositories.
 - Use `gwt prune` only to clean stale Git worktree metadata.
 - Run `gwt update` or `gwt checkout-base` only for a clean primary checkout; use `--all` only when every sibling root should receive the operation.
