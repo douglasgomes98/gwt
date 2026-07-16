@@ -46,6 +46,39 @@ func initRepo(t *testing.T, dir string) {
 	}
 }
 
+func remoteRepo(t *testing.T, parent, name string) (string, string) {
+	t.Helper()
+	remote := filepath.Join(parent, name+".git")
+	root := filepath.Join(parent, "roots", name)
+	peer := filepath.Join(parent, name+"-peer")
+	for _, dir := range []string{parent, root, peer} {
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, command := range []struct {
+		dir  string
+		args []string
+	}{
+		{parent, []string{"init", "--bare", "--initial-branch=main", remote}},
+		{parent, []string{"clone", remote, root}},
+		{root, []string{"config", "user.email", "test@example.com"}},
+		{root, []string{"config", "user.name", "Test"}},
+		{root, []string{"commit", "--allow-empty", "-m", "init"}},
+		{root, []string{"push", "-u", "origin", "main"}},
+		{parent, []string{"clone", remote, peer}},
+		{peer, []string{"config", "user.email", "test@example.com"}},
+		{peer, []string{"config", "user.name", "Test"}},
+	} {
+		cmd := exec.Command("git", command.args...) // #nosec G204 -- test invokes Git with fixed arguments.
+		cmd.Dir = command.dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", command.args, err, out)
+		}
+	}
+	return root, peer
+}
+
 func TestCommandsUseRealWorktree(t *testing.T) {
 	dir := testRepo(t)
 	var out, err bytes.Buffer
@@ -574,6 +607,96 @@ func TestUpdateFetchesCleanBaseRoot(t *testing.T) {
 	}
 }
 
+func TestUpdateAndCheckoutBaseAllApplyToSiblingRoots(t *testing.T) {
+	parent := t.TempDir()
+	api, apiPeer := remoteRepo(t, parent, "api")
+	web, webPeer := remoteRepo(t, parent, "web")
+	for _, repo := range []string{api, web} {
+		cmd := exec.Command("git", "checkout", "-b", "feature")
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git checkout in %s: %v: %s", repo, err, out)
+		}
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, api, "", config.Config{BaseBranch: "main"})
+	if err := a.Run([]string{"checkout-base", "--all"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, repo := range []string{api, web} {
+		cmd := exec.Command("git", "branch", "--show-current")
+		cmd.Dir = repo
+		out, err := cmd.Output()
+		if err != nil || strings.TrimSpace(string(out)) != "main" {
+			t.Fatalf("branch in %s = %q, %v", repo, out, err)
+		}
+	}
+	for _, peer := range []string{apiPeer, webPeer} {
+		if err := os.WriteFile(filepath.Join(peer, "remote"), []byte("new"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, args := range [][]string{{"add", "remote"}, {"commit", "-m", "remote"}, {"push"}} {
+			cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
+			cmd.Dir = peer
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v: %s", args, err, out)
+			}
+		}
+	}
+	if err := a.Run([]string{"update", "--all"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, root := range []string{api, web} {
+		if _, err := os.Stat(filepath.Join(root, "remote")); err != nil {
+			t.Fatalf("%s did not update: %v", root, err)
+		}
+	}
+}
+
+func TestAllRootCommandsPrevalidateBeforeMutating(t *testing.T) {
+	parent := t.TempDir()
+	api, apiPeer := remoteRepo(t, parent, "api")
+	web, _ := remoteRepo(t, parent, "web")
+	if err := os.WriteFile(filepath.Join(apiPeer, "remote"), []byte("new"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "remote"}, {"commit", "-m", "remote"}, {"push"}} {
+		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
+		cmd.Dir = apiPeer
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(web, "dirty"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, api, "", config.Config{BaseBranch: "main"})
+	cmd := exec.Command("git", "checkout", "-b", "feature") // #nosec G204 -- test invokes Git with fixed arguments.
+	cmd.Dir = api
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	if err := a.Run([]string{"checkout-base", "--all"}); err == nil || !strings.Contains(err.Error(), "root has uncommitted changes") {
+		t.Fatalf("checkout-base --all error = %v, want dirty-root failure", err)
+	}
+	cmd = exec.Command("git", "branch", "--show-current") // #nosec G204 -- test invokes Git with fixed arguments.
+	cmd.Dir = api
+	out, err := cmd.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "feature" {
+		t.Fatalf("api branch changed before prevalidation: %q, %v", out, err)
+	}
+	cmd = exec.Command("git", "checkout", "main") // #nosec G204 -- test invokes Git with fixed arguments.
+	cmd.Dir = api
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout: %v: %s", err, out)
+	}
+	if err := a.Run([]string{"update", "--all"}); err == nil || !strings.Contains(err.Error(), "root has uncommitted changes") {
+		t.Fatalf("update --all error = %v, want dirty-root failure", err)
+	}
+	if _, err := os.Stat(filepath.Join(api, "remote")); !os.IsNotExist(err) {
+		t.Fatalf("api updated before prevalidation: %v", err)
+	}
+}
+
 func TestUpdateRejectsDirtyRootBeforeFetch(t *testing.T) {
 	dir := testRepo(t)
 	if err := os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0600); err != nil {
@@ -625,7 +748,7 @@ func TestCheckoutBaseAndDiscardCommands(t *testing.T) {
 
 func TestRootManagementCommandsRejectArguments(t *testing.T) {
 	a := New(&bytes.Buffer{}, &bytes.Buffer{}, testRepo(t), "", config.Config{})
-	for _, args := range [][]string{{"checkout-base", "extra"}, {"discard", "extra"}} {
+	for _, args := range [][]string{{"update", "extra"}, {"update", "--other"}, {"checkout-base", "extra"}, {"checkout-base", "--other"}, {"discard", "extra"}} {
 		if err := a.Run(args); err == nil {
 			t.Fatalf("accepted %v", args)
 		}

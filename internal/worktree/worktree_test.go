@@ -356,6 +356,50 @@ func TestDiscardResetsAndCleansAllChanges(t *testing.T) {
 	}
 }
 
+func TestDiscardResetsInitializedSubmodules(t *testing.T) {
+	r := repo(t)
+	child := filepath.Join(t.TempDir(), "child")
+	if err := os.Mkdir(child, 0750); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "init", "-b", "main")
+	git(t, child, "config", "user.email", "test@example.com")
+	git(t, child, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(child, "README"), []byte("ok"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(child, ".gitignore"), []byte("ignored\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "add", ".")
+	git(t, child, "commit", "-m", "init")
+	git(t, r, "-c", "protocol.file.allow=always", "submodule", "add", child, "deps/child")
+	git(t, r, "commit", "-am", "add submodule")
+
+	submodule := filepath.Join(r, "deps", "child")
+	if err := os.WriteFile(filepath.Join(submodule, "README"), []byte("changed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(submodule, "untracked"), []byte("remove"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(submodule, "ignored"), []byte("remove"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := worktree.Discard(r); err != nil {
+		t.Fatal(err)
+	}
+	readme, err := os.ReadFile(filepath.Join(submodule, "README")) // #nosec G304 -- test reads its own fixed fixture path.
+	if err != nil || string(readme) != "ok" {
+		t.Fatalf("submodule README: %q, %v", readme, err)
+	}
+	for _, name := range []string{"untracked", "ignored"} {
+		if _, err := os.Stat(filepath.Join(submodule, name)); !os.IsNotExist(err) {
+			t.Fatalf("submodule %s remained: %v", name, err)
+		}
+	}
+}
+
 func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
 	t.Run("fast forward", func(t *testing.T) {
 		root, peer := remoteRepos(t)
