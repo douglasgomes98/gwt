@@ -212,7 +212,7 @@ func RemoveAll(repo string) (int, error) {
 func Fetch(repo, base string) error { _, err := git.Run(repo, "fetch", "origin", base); return err }
 func Prune(repo string) error       { _, err := git.Run(repo, "worktree", "prune"); return err }
 
-func Update(path, base string) error {
+func ValidateUpdate(path, base string) error {
 	status, err := git.Run(path, "status", "--porcelain")
 	if err != nil {
 		return err
@@ -227,14 +227,21 @@ func Update(path, base string) error {
 	if strings.TrimSpace(branch) != base {
 		return fmt.Errorf("root must be on %s", base)
 	}
+	return nil
+}
+
+func Update(path, base string) error {
+	if err := ValidateUpdate(path, base); err != nil {
+		return err
+	}
 	if err := Fetch(path, base); err != nil {
 		return err
 	}
-	_, err = git.Run(path, "merge", "--ff-only", "origin/"+base)
+	_, err := git.Run(path, "merge", "--ff-only", "origin/"+base)
 	return err
 }
 
-func CheckoutBase(path, base string) error {
+func ValidateCheckoutBase(path string) error {
 	status, err := git.Run(path, "status", "--porcelain")
 	if err != nil {
 		return err
@@ -249,7 +256,14 @@ func CheckoutBase(path, base string) error {
 	if strings.TrimSpace(branch) == "" {
 		return fmt.Errorf("refusing to checkout detached root")
 	}
-	_, err = git.Run(path, "checkout", base)
+	return nil
+}
+
+func CheckoutBase(path, base string) error {
+	if err := ValidateCheckoutBase(path); err != nil {
+		return err
+	}
+	_, err := git.Run(path, "checkout", base)
 	return err
 }
 

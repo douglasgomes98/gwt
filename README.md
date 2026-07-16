@@ -68,8 +68,8 @@ gwt rm AG-123 --all
 # removes every non-primary worktree in the current repository
 gwt rm --all
 
-# updates the current repository's primary checkout
-gwt update
+# updates clean primary checkouts in api and web
+gwt update --all
 
 # updates the gwt CLI
 gwt upgrade
@@ -80,8 +80,8 @@ gwt skill install --agents
 # install the same guidance for Claude Code in ~/.claude/skills
 gwt skill install --claude
 
-# checks out the base branch in the primary checkout
-gwt checkout-base
+# checks out the base branch in clean primary checkouts in api and web
+gwt checkout-base --all
 
 # discards all local changes in the primary checkout
 gwt discard
@@ -101,10 +101,10 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt rm --all` | Force-removes every non-primary worktree in the current repository. |
 | `gwt list` | Lists worktrees in the current repository. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
-| `gwt update` | Updates the current repository's clean primary checkout on the base branch. |
+| `gwt update [--all]` | Updates the current repository's clean primary checkout on the base branch. `--all` updates sibling roots too. |
 | `gwt upgrade` | Updates the installed CLI through Homebrew or Go. |
 | `gwt skill install --agents|--claude` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
-| `gwt checkout-base` | Checks out the base branch in the current repository's clean primary checkout. |
+| `gwt checkout-base [--all]` | Checks out the base branch in the current repository's clean primary checkout. `--all` applies it to sibling roots too. |
 | `gwt discard` | Discards all local changes in the current repository's primary checkout and initialized submodules: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |
 | `gwt version` | Shows the binary version. |
