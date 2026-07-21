@@ -333,13 +333,15 @@ func TestEmbeddedSkillDocumentsTaskWorkflow(t *testing.T) {
 		"gwt list --all",
 		"gwt list --group",
 		"gwt add <branch>",
-		"Never run `gwt add --all`",
 		"--codex",
 		"--cursor",
 	} {
 		if !strings.Contains(skill, want) {
 			t.Fatalf("embedded skill missing %q", want)
 		}
+	}
+	if strings.Contains(skill, "gwt add --all") {
+		t.Fatal("embedded skill mentions bulk worktree creation")
 	}
 }
 
