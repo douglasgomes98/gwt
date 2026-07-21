@@ -333,6 +333,7 @@ func TestEmbeddedSkillDocumentsTaskWorkflow(t *testing.T) {
 		"gwt list --all",
 		"gwt list --group",
 		"gwt add <branch>",
+		"Never run `gwt add --all`",
 		"--codex",
 		"--cursor",
 	} {
