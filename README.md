@@ -89,6 +89,18 @@ gwt skill update --agents
 # install the same guidance for Claude Code in ~/.claude/skills
 gwt skill install --claude
 
+# install the same guidance for Codex in ~/.codex/skills
+gwt skill install --codex
+
+# replace Codex guidance with the version in this gwt release
+gwt skill update --codex
+
+# install the same guidance for Cursor in ~/.cursor/skills
+gwt skill install --cursor
+
+# replace Cursor guidance with the version in this gwt release
+gwt skill update --cursor
+
 # checks out the base branch in clean primary checkouts in api and web
 gwt checkout-base --all
 
@@ -114,8 +126,8 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update [--all]` | Updates the current repository's clean primary checkout on the base branch. `--all` updates sibling roots too. |
 | `gwt upgrade` | Updates the installed CLI through Homebrew or Go. |
-| `gwt skill install --agents|--claude` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
-| `gwt skill update --agents|--claude` | Replaces the selected `gwt-worktrees` skill with the version bundled in gwt. |
+| `gwt skill install --agents|--claude|--codex|--cursor` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
+| `gwt skill update --agents|--claude|--codex|--cursor` | Replaces the selected `gwt-worktrees` skill with the version bundled in gwt. |
 | `gwt checkout-base [--all]` | Checks out the base branch in the current repository's clean primary checkout. `--all` applies it to sibling roots too. |
 | `gwt discard` | Discards all local changes in the current repository's primary checkout and initialized submodules: tracked, untracked, and ignored. |
 | `gwt help` | Shows CLI help. |

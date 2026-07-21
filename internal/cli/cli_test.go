@@ -244,12 +244,14 @@ func TestSkillInstallCopiesEmbeddedSkillToSelectedHomes(t *testing.T) {
 
 	var out bytes.Buffer
 	a := New(&out, &bytes.Buffer{}, t.TempDir(), "", config.Config{})
-	if err := a.Run([]string{"skill", "install", "--agents", "--claude"}); err != nil {
+	if err := a.Run([]string{"skill", "install", "--agents", "--claude", "--codex", "--cursor"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{
 		filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md"),
 		filepath.Join(home, ".claude", "skills", "gwt-worktrees", "SKILL.md"),
+		filepath.Join(home, ".codex", "skills", "gwt-worktrees", "SKILL.md"),
+		filepath.Join(home, ".cursor", "skills", "gwt-worktrees", "SKILL.md"),
 	} {
 		got, err := os.ReadFile(path) // #nosec G304 -- test reads a path built from its temp home.
 		if err != nil || !bytes.Equal(got, gwtWorktreesSkill) {
@@ -300,19 +302,43 @@ func TestSkillUpdateOverwritesSelectedSkill(t *testing.T) {
 	userHomeDir = func() (string, error) { return home, nil }
 	t.Cleanup(func() { userHomeDir = oldHome })
 
-	path := filepath.Join(home, ".agents", "skills", "gwt-worktrees", "SKILL.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
-		t.Fatal(err)
+	for _, target := range []string{".agents", ".claude", ".codex", ".cursor"} {
+		t.Run(target, func(t *testing.T) {
+			path := filepath.Join(home, target, "skills", "gwt-worktrees", "SKILL.md")
+			if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("custom"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			flag := "--" + strings.TrimPrefix(target, ".")
+			if target == ".agents" {
+				flag = "--agents"
+			}
+			if err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "update", flag}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(path) // #nosec G304 -- test reads a path built from its temp home.
+			if err != nil || !bytes.Equal(got, gwtWorktreesSkill) {
+				t.Fatalf("updated skill = %q, %v", got, err)
+			}
+		})
 	}
-	if err := os.WriteFile(path, []byte("custom"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"skill", "update", "--agents"}); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(path) // #nosec G304 -- test reads a path built from its temp home.
-	if err != nil || !bytes.Equal(got, gwtWorktreesSkill) {
-		t.Fatalf("updated skill = %q, %v", got, err)
+}
+
+func TestEmbeddedSkillDocumentsTaskWorkflow(t *testing.T) {
+	skill := string(gwtWorktreesSkill)
+	for _, want := range []string{
+		"organize a task",
+		"gwt list --all",
+		"gwt list --group",
+		"gwt add <branch>",
+		"--codex",
+		"--cursor",
+	} {
+		if !strings.Contains(skill, want) {
+			t.Fatalf("embedded skill missing %q", want)
+		}
 	}
 }
 
@@ -826,7 +852,7 @@ func TestHelpListsCommands(t *testing.T) {
 	got := out.String()
 	add := strings.Index(strings.Split(got, "\n")[3], "Create a worktree.")
 	skill := strings.Index(strings.Split(got, "\n")[11], "Install or update the gwt worktree skill for agents.")
-	if got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config") || !strings.Contains(got, "skill install|update --agents|--claude") || !strings.Contains(got, "list [--all|--group]") || !strings.Contains(got, "upgrade") || add < 0 || skill < 0 || add != skill {
+	if got == "" || !bytes.Contains(out.Bytes(), []byte("add <branch>")) || !strings.Contains(got, "rm --all") || !strings.Contains(got, "Remove all worktrees in the current root.") || !strings.Contains(got, "init-config") || !strings.Contains(got, "skill install|update --agents|--claude|--codex|--cursor") || !strings.Contains(got, "list [--all|--group]") || !strings.Contains(got, "upgrade") || add < 0 || skill < 0 || add != skill {
 		t.Fatalf("unexpected help: %q", got)
 	}
 }
