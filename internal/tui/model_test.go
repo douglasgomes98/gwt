@@ -40,6 +40,18 @@ func TestFeatureSelectionStartsWholeGroupThenTogglesOne(t *testing.T) {
 	}
 }
 
+func TestFeatureSelectionDoesNotSelectRootWithSameBranch(t *testing.T) {
+	m := modelWith([]worktree.Item{
+		{Repo: "api", Branch: "AG-1", Path: "/api", Primary: true},
+		{Repo: "web", Branch: "AG-1", Path: "/web.AG-1"},
+	})
+	m.cursor = 1
+	m = press(m, "space")
+	if m.selected["/api"] || !m.selected["/web.AG-1"] {
+		t.Fatalf("feature selection included root: %#v", m.selected)
+	}
+}
+
 func TestFeatureSelectionRequiresEscapeBeforeChangingGroups(t *testing.T) {
 	m := modelWith([]worktree.Item{
 		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
