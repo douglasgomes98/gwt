@@ -222,12 +222,15 @@ func TestMultipleRootsAndFeaturesUseBatchCommands(t *testing.T) {
 func TestViewGroupsPrimaryCheckoutsUnderRoots(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	m := modelWith([]worktree.Item{
-		{Repo: "guru", Branch: "feature", Path: "/guru", Primary: true},
+		{Repo: "guru", Branch: "main", Path: "/guru", Primary: true},
 		{Repo: "api", Branch: "feature", Path: "/api.feature"},
 	})
 	view := m.View().Content
 	if !strings.Contains(view, "roots") || strings.Index(view, "feature") > strings.Index(view, "roots") {
 		t.Fatalf("unexpected groups: %q", view)
+	}
+	if !strings.Contains(view, "○ main               guru") || strings.Contains(view, "○ guru               guru") || !strings.Contains(view, "api") {
+		t.Fatalf("unexpected rows: %q", view)
 	}
 }
 
@@ -239,7 +242,7 @@ func TestViewUsesSemanticCheckoutColors(t *testing.T) {
 		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
 	})
 	view := m.View().Content
-	if !strings.Contains(view, "\033[1mapi               \033[0m") {
+	if !strings.Contains(view, "\033[1mmain              \033[0m") {
 		t.Fatalf("root is not bold default text: %q", view)
 	}
 	if !strings.Contains(view, "\033[1;38;5;81mapi               \033[0m") {

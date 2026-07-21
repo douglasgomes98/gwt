@@ -611,7 +611,11 @@ func (m Model) renderItemRows(b *strings.Builder, rows []int) {
 		if !item.Primary {
 			nameStyle = "1;38;5;81"
 		}
-		repo := style(nameStyle, fmt.Sprintf("%-18s", item.Repo))
+		name := item.Repo
+		if item.Primary {
+			name = item.Branch
+		}
+		repo := style(nameStyle, fmt.Sprintf("%-18s", name))
 		path := style("2", fmt.Sprintf("%-42s", displayPath(item.Path)))
 		row := fmt.Sprintf("%s %s %s %s %s", mark, radio, repo, path, itemStatus(item))
 		if selected {
