@@ -19,15 +19,15 @@ var (
 
 func (a App) skill(args []string) error {
 	if len(args) == 0 || (args[0] != "install" && args[0] != "update") {
-		return fmt.Errorf("usage: gwt skill install|update --agents|--claude [--agents|--claude]")
+		return fmt.Errorf("usage: gwt skill install|update --agents|--claude|--codex|--cursor [--agents|--claude|--codex|--cursor]")
 	}
 	update := args[0] == "update"
-	flags, values, err := parse(args[1:], "--agents", "--claude")
+	flags, values, err := parse(args[1:], "--agents", "--claude", "--codex", "--cursor")
 	if err != nil {
 		return err
 	}
-	if len(values) != 0 || (!flags["--agents"] && !flags["--claude"]) {
-		return fmt.Errorf("usage: gwt skill install|update --agents|--claude [--agents|--claude]")
+	if len(values) != 0 || (!flags["--agents"] && !flags["--claude"] && !flags["--codex"] && !flags["--cursor"]) {
+		return fmt.Errorf("usage: gwt skill install|update --agents|--claude|--codex|--cursor [--agents|--claude|--codex|--cursor]")
 	}
 	home, err := userHomeDir()
 	if err != nil {
@@ -103,6 +103,12 @@ func skillPaths(home string, flags map[string]bool) []string {
 	}
 	if flags["--claude"] {
 		paths = append(paths, filepath.Join(home, ".claude", "skills", "gwt-worktrees", "SKILL.md"))
+	}
+	if flags["--codex"] {
+		paths = append(paths, filepath.Join(home, ".codex", "skills", "gwt-worktrees", "SKILL.md"))
+	}
+	if flags["--cursor"] {
+		paths = append(paths, filepath.Join(home, ".cursor", "skills", "gwt-worktrees", "SKILL.md"))
 	}
 	return paths
 }

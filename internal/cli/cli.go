@@ -114,7 +114,7 @@ Commands:
   prune	Prune stale worktrees.
   update [--all]	Update clean roots on the base branch.
   upgrade	Upgrade gwt.
-  skill install|update --agents|--claude	Install or update the gwt worktree skill for agents.
+  skill install|update --agents|--claude|--codex|--cursor	Install or update the gwt worktree skill for agents.
   init-config	Create a local configuration file.
   checkout-base [--all]	Checkout the base branch in clean roots.
   discard	Discard all local changes in the current root and initialized submodules.

@@ -1,11 +1,15 @@
 ---
 name: gwt-worktrees
-description: Use when an agent needs to create, inspect, enter, or safely remove Git worktrees for a task with the gwt CLI.
+description: Use when an agent needs to organize a task across a Git project group, discover related projects, or create, inspect, enter, or safely remove worktrees with the gwt CLI.
 ---
 
 # gwt worktrees
 
-Use `gwt` from a repository root or its sibling-project directory. Start by checking the available worktrees:
+Use `gwt` to organize a task as one branch across the projects in its sibling Git group. Use it from a repository root or its sibling-project directory.
+
+## Discover the task and projects
+
+Start by inspecting the current repository's worktrees:
 
 ```sh
 gwt list
@@ -17,22 +21,40 @@ To find related worktrees after entering a task checkout, use:
 gwt list --group
 ```
 
-It lists the current branch across sibling repositories. Use `gwt list --all`
-when you need every worktree in the group.
+It lists the current branch (the task) across sibling repositories. Use `gwt list --all`
+to discover every existing project and worktree in the group before research or
+when the task may affect another app.
 
-After upgrading `gwt`, run `gwt skill update --agents` or `gwt skill update
---claude` to replace the installed copy of this skill with the bundled version.
+After upgrading `gwt`, run `gwt skill update --agents`, `gwt skill update
+--claude`, `gwt skill update --codex`, or `gwt skill update --cursor` to
+replace the installed copy of this skill with the bundled version.
 
 ## Create and enter a task worktree
 
-Create one worktree in the current repository, capture the printed path, then work from that path:
+Research may happen in the current checkout. Before changing files, check whether
+the agent is already in a linked worktree:
+
+```sh
+git_dir=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
+git_common=$(cd "$(git rev-parse --git-common-dir)" 2>/dev/null && pwd -P)
+```
+
+If those paths differ, continue in the existing linked worktree. Otherwise, ask
+the user for the task branch when it was not provided, then create one worktree
+in the target project's primary checkout, capture its printed path, and work
+from that path:
 
 ```sh
 worktree=$(gwt add AG-123)
 cd "$worktree"
 ```
 
-For the same branch in all sibling repositories, use `--all`; `gwt add` prints one path per repository. Enter only the repository needed for the current task.
+When the task expands from one app to another, use `gwt list --all` to locate
+the other app's primary checkout. Run the same `gwt add <branch>` there and
+enter its printed path. `gwt list --group` then shows both worktrees for the
+task.
+
+For the same branch in every sibling repository, use `--all`; `gwt add` prints one path per repository. Use it only when the task genuinely changes every project in the group.
 
 ```sh
 gwt add AG-123 --all
