@@ -54,11 +54,8 @@ the other app's primary checkout. Run the same `gwt add <branch>` there and
 enter its printed path. `gwt list --group` then shows both worktrees for the
 task.
 
-For the same branch in every sibling repository, use `--all`; `gwt add` prints one path per repository. Use it only when the task genuinely changes every project in the group.
-
-```sh
-gwt add AG-123 --all
-```
+Use `gwt list --all` only for discovery, then run `gwt add <branch>`
+individually in each required project.
 
 Do not use `gwt open` to change the current agent's directory: it starts a child shell. Use the path emitted by `gwt add` or the `PATH` column from `gwt list`, then `cd` directly. `gwt open root` opens the primary checkout when a child shell, editor, or agent is needed.
 
@@ -66,7 +63,7 @@ Do not use `gwt open` to change the current agent's directory: it starts a child
 
 - Use `gwt list --group` to locate the current task in sibling repositories;
   use `gwt list --all` to inspect the whole group.
-- Use `gwt add <branch> [base]`; pass `--all` only when the task genuinely spans sibling repositories.
+- Use `gwt add <branch> [base]` only in each project the task requires.
 - Use `gwt prune` only to clean stale Git worktree metadata.
 - Run `gwt update` or `gwt checkout-base` only for a clean primary checkout; use `--all` only when every sibling root should receive the operation.
 - Never run `gwt rm`, `gwt discard`, `git reset --hard`, or `git clean` without explicit user approval; explain the target paths and data that will be removed first. `gwt discard` also recursively discards changes in initialized submodules.

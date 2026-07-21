@@ -340,6 +340,9 @@ func TestEmbeddedSkillDocumentsTaskWorkflow(t *testing.T) {
 			t.Fatalf("embedded skill missing %q", want)
 		}
 	}
+	if strings.Contains(skill, "gwt add --all") {
+		t.Fatal("embedded skill mentions bulk worktree creation")
+	}
 }
 
 func TestSkillUpdateDoesNotRemoveEarlierDestinationOnFailure(t *testing.T) {
