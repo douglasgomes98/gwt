@@ -269,7 +269,7 @@ func (m *Model) toggleSelection() {
 		m.feature = item.Branch
 		m.clearRoots()
 		for _, candidate := range m.items {
-			if candidate.Branch == item.Branch && !candidate.Detached {
+			if !candidate.Primary && candidate.Branch == item.Branch && !candidate.Detached {
 				m.selected[candidate.Path] = true
 			}
 		}
