@@ -150,7 +150,7 @@ func TestRootPaletteHidesActionsThatCannotRun(t *testing.T) {
 		{
 			name:  "dirty root",
 			items: []worktree.Item{{Repo: "api", Branch: "main", Path: "/api", Primary: true, Dirty: true}},
-			want:  []action{actionAdd, actionRemoveAll, actionPrune, actionOpen, actionDiscard},
+			want:  []action{actionAdd, actionRemoveAll, actionPrune, actionOpen, actionSyncSubmodules, actionDiscard},
 		},
 		{
 			name:  "clean non-base root",
@@ -163,7 +163,7 @@ func TestRootPaletteHidesActionsThatCannotRun(t *testing.T) {
 				{Repo: "api", Branch: "main", Path: "/api", Primary: true},
 				{Repo: "web", Branch: "main", Path: "/web", Primary: true, Dirty: true},
 			},
-			want: []action{actionAddAll, actionRemoveAll, actionPrune, actionDiscard},
+			want: []action{actionAddAll, actionRemoveAll, actionPrune, actionSyncSubmodules, actionDiscard},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -185,7 +185,8 @@ func TestActionLabelsAreDescriptiveAndLowercase(t *testing.T) {
 		actionOpenAgent: "open agent", actionRemove: "remove worktree",
 		actionRemoveAll: "remove worktrees", actionPrune: "prune stale worktrees",
 		actionUpdate: "update root", actionCheckoutBase: "checkout base branch",
-		actionDiscard: "discard local changes",
+		actionDiscard:        "discard local changes",
+		actionSyncSubmodules: "sync submodules",
 	}
 	for a, want := range labels {
 		if got := actionLabel(a); got != want || got != strings.ToLower(got) {

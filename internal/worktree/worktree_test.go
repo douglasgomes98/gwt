@@ -400,6 +400,67 @@ func TestDiscardResetsInitializedSubmodules(t *testing.T) {
 	}
 }
 
+func submoduleFixture(t *testing.T) (root, submodule string) {
+	t.Helper()
+	root = repo(t)
+	child := filepath.Join(t.TempDir(), "child")
+	if err := os.Mkdir(child, 0750); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "init", "-b", "main")
+	git(t, child, "config", "user.email", "test@example.com")
+	git(t, child, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(child, "README"), []byte("first"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "add", ".")
+	git(t, child, "commit", "-m", "first")
+	git(t, root, "-c", "protocol.file.allow=always", "submodule", "add", child, "deps/child")
+	git(t, root, "commit", "-am", "add submodule")
+
+	if err := os.WriteFile(filepath.Join(child, "README"), []byte("second"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "commit", "-am", "second")
+	return root, filepath.Join(root, "deps", "child")
+}
+
+func TestSyncSubmodulesResetsPointerToIndexedCommit(t *testing.T) {
+	root, submodule := submoduleFixture(t)
+	git(t, submodule, "-c", "protocol.file.allow=always", "pull", "origin", "main")
+
+	if err := worktree.SyncSubmodules(root); err != nil {
+		t.Fatal(err)
+	}
+	status, err := worktree.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status[0].Dirty {
+		t.Fatalf("root still dirty after sync: %+v", status[0])
+	}
+	readme, err := os.ReadFile(filepath.Join(submodule, "README")) // #nosec G304 -- test reads its own fixed fixture path.
+	if err != nil || string(readme) != "first" {
+		t.Fatalf("submodule README: %q, %v", readme, err)
+	}
+}
+
+func TestSyncSubmodulesRefusesToOverwriteLocalChanges(t *testing.T) {
+	root, submodule := submoduleFixture(t)
+	git(t, submodule, "-c", "protocol.file.allow=always", "pull", "origin", "main")
+	if err := os.WriteFile(filepath.Join(submodule, "README"), []byte("uncommitted"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := worktree.SyncSubmodules(root); err == nil {
+		t.Fatal("expected sync to refuse overwriting uncommitted submodule changes")
+	}
+	readme, err := os.ReadFile(filepath.Join(submodule, "README")) // #nosec G304 -- test reads its own fixed fixture path.
+	if err != nil || string(readme) != "uncommitted" {
+		t.Fatalf("submodule README should be untouched: %q, %v", readme, err)
+	}
+}
+
 func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
 	t.Run("fast forward", func(t *testing.T) {
 		root, peer := remoteRepos(t)
