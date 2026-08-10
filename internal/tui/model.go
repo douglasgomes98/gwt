@@ -38,17 +38,18 @@ type Model struct {
 type action string
 
 const (
-	actionAdd          action = "add"
-	actionAddAll       action = "add --all"
-	actionOpen         action = "open"
-	actionOpenEditor   action = "open -e"
-	actionOpenAgent    action = "open -a"
-	actionRemove       action = "rm"
-	actionRemoveAll    action = "rm --all"
-	actionPrune        action = "prune"
-	actionUpdate       action = "update"
-	actionCheckoutBase action = "checkout-base"
-	actionDiscard      action = "discard"
+	actionAdd            action = "add"
+	actionAddAll         action = "add --all"
+	actionOpen           action = "open"
+	actionOpenEditor     action = "open -e"
+	actionOpenAgent      action = "open -a"
+	actionRemove         action = "rm"
+	actionRemoveAll      action = "rm --all"
+	actionPrune          action = "prune"
+	actionUpdate         action = "update"
+	actionCheckoutBase   action = "checkout-base"
+	actionDiscard        action = "discard"
+	actionSyncSubmodules action = "sync-submodules"
 )
 
 type loaded struct {
@@ -197,6 +198,9 @@ func (m Model) handleConfirmation(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		if m.pending == actionDiscard {
 			return m, tea.Batch(tick, m.discardSelectedRoots())
 		}
+		if m.pending == actionSyncSubmodules {
+			return m, tea.Batch(tick, m.syncSubmodulesSelectedRoots())
+		}
 		if m.pending == actionRemoveAll && len(m.selectedRoots()) > 0 {
 			return m, tea.Batch(tick, m.removeSelectedRoots())
 		}
@@ -307,7 +311,7 @@ func (m Model) execute(a action) (Model, tea.Cmd) {
 		m.palette, m.input, m.branch = false, true, ""
 		m.message = "branch: "
 		return m, nil
-	case actionRemove, actionRemoveAll, actionDiscard:
+	case actionRemove, actionRemoveAll, actionDiscard, actionSyncSubmodules:
 		m.palette, m.confirm, m.pending = false, true, a
 		return m, nil
 	case actionPrune:
@@ -432,6 +436,18 @@ func (m Model) discardSelectedRoots() tea.Cmd {
 			}
 		}
 		return operationResult{message: fmt.Sprintf("discarded changes in %d roots", len(roots)), reload: true}
+	}
+}
+
+func (m Model) syncSubmodulesSelectedRoots() tea.Cmd {
+	roots := m.selectedRoots()
+	return func() tea.Msg {
+		for _, root := range roots {
+			if err := worktree.SyncSubmodules(root.Path); err != nil {
+				return operationResult{err: partial(actionSyncSubmodules, err), reload: true}
+			}
+		}
+		return operationResult{message: fmt.Sprintf("synced submodules in %d roots", len(roots)), reload: true}
 	}
 }
 
@@ -653,6 +669,10 @@ func (m Model) renderConfirmation(b *strings.Builder) {
 			prompt = "discard all local changes in selected roots?"
 			promptStyle = "1;38;5;203"
 		}
+		if m.pending == actionSyncSubmodules {
+			prompt = "sync submodules to the commit recorded in selected roots?"
+			promptStyle = "1;38;5;208"
+		}
 		b.WriteByte('\n')
 		b.WriteString(style(promptStyle, prompt))
 		b.WriteString("  ")
@@ -727,6 +747,8 @@ func actionLabel(a action) string {
 		return "checkout base branch"
 	case actionDiscard:
 		return "discard local changes"
+	case actionSyncSubmodules:
+		return "sync submodules"
 	}
 	return string(a)
 }
@@ -745,6 +767,8 @@ func operationLabel(a action) string {
 		return "checking out base…"
 	case actionDiscard:
 		return "discarding changes…"
+	case actionSyncSubmodules:
+		return "syncing submodules…"
 	}
 	return "working…"
 }
@@ -843,7 +867,7 @@ func (m Model) availableActions() []action {
 			actions = append(actions, actionCheckoutBase)
 		}
 		if anyDirty {
-			actions = append(actions, actionDiscard)
+			actions = append(actions, actionSyncSubmodules, actionDiscard)
 		}
 		return actions
 	}

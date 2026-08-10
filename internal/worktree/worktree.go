@@ -267,6 +267,15 @@ func CheckoutBase(path, base string) error {
 	return err
 }
 
+// SyncSubmodules checks out each submodule at the commit recorded in the
+// superproject's index. It does not pass --force: if a submodule has local
+// changes that the checkout would overwrite, git refuses and the error
+// surfaces to the caller instead of discarding that work silently.
+func SyncSubmodules(path string) error {
+	_, err := git.Run(path, "submodule", "update", "--init", "--recursive")
+	return err
+}
+
 func Discard(path string) error {
 	branch, err := git.Run(path, "branch", "--show-current")
 	if err != nil {
