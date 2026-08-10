@@ -847,6 +847,55 @@ func TestUpgrade(t *testing.T) {
 	}
 }
 
+// TestUpgradeDetectsBrewInstallThroughSymlinkedPrefix reproduces a real
+// Homebrew layout: bin/gwt symlinks into the Cellar, and brew --prefix
+// reports the unresolved "opt" symlink that also points into the Cellar.
+// EvalSymlinks on the executable resolves straight through to the Cellar
+// path, so the prefix must be resolved the same way or the comparison never
+// matches a brew-installed binary.
+func TestUpgradeDetectsBrewInstallThroughSymlinkedPrefix(t *testing.T) {
+	root := t.TempDir()
+	cellar := filepath.Join(root, "Cellar", "gwt", "1.7.0", "bin")
+	if err := os.MkdirAll(cellar, 0750); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(cellar, "gwt")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\n"), 0700); err != nil { // #nosec G306 -- test fixture binary.
+		t.Fatal(err)
+	}
+	opt := filepath.Join(root, "opt", "gwt")
+	if err := os.MkdirAll(filepath.Dir(opt), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "Cellar", "gwt", "1.7.0"), opt); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(root, "bin", "gwt")
+	if err := os.MkdirAll(filepath.Dir(bin), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(binary, bin); err != nil {
+		t.Fatal(err)
+	}
+
+	oldExecutable, oldCommand := executable, command
+	t.Cleanup(func() { executable, command = oldExecutable, oldCommand })
+	executable = func() (string, error) { return bin, nil }
+	command = func(name string, args ...string) *exec.Cmd {
+		if name == "brew" && slices.Equal(args, []string{"--prefix", "gwt"}) {
+			return exec.Command("printf", "%s", opt) // #nosec G204 -- prefix comes from a fixed test fixture.
+		}
+		if name == "brew" && slices.Equal(args, []string{"upgrade", "gwt"}) {
+			return exec.Command("true")
+		}
+		t.Fatalf("command = %s %v", name, args)
+		return nil
+	}
+	if err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"upgrade"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHelpListsCommands(t *testing.T) {
 	var out bytes.Buffer
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
