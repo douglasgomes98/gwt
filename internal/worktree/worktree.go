@@ -81,7 +81,7 @@ func List(repo string) ([]Item, error) {
 		return nil, err
 	}
 	for i := range items {
-		status, _ := git.Run(items[i].Path, "status", "--porcelain")
+		status, _ := git.Run(items[i].Path, "status", "--porcelain", "--ignore-submodules=dirty")
 		items[i].Dirty = strings.TrimSpace(status) != ""
 		if trimmed := strings.TrimSpace(status); trimmed != "" {
 			items[i].Changes = strings.Count(trimmed, "\n") + 1
@@ -213,7 +213,7 @@ func Fetch(repo, base string) error { _, err := git.Run(repo, "fetch", "origin",
 func Prune(repo string) error       { _, err := git.Run(repo, "worktree", "prune"); return err }
 
 func ValidateUpdate(path, base string) error {
-	status, err := git.Run(path, "status", "--porcelain")
+	status, err := git.Run(path, "status", "--porcelain", "--ignore-submodules=dirty")
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func Update(path, base string) error {
 }
 
 func ValidateCheckoutBase(path string) error {
-	status, err := git.Run(path, "status", "--porcelain")
+	status, err := git.Run(path, "status", "--porcelain", "--ignore-submodules=dirty")
 	if err != nil {
 		return err
 	}
