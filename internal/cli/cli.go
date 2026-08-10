@@ -77,10 +77,21 @@ func (a App) upgrade(args []string) error {
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
 		path = resolved
 	}
-	prefix, err := command("brew", "--prefix", "gwt").Output()
+	prefixOut, err := command("brew", "--prefix", "gwt").Output()
 	name, values := "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}
-	if err == nil && strings.HasPrefix(path, strings.TrimSpace(string(prefix))+string(filepath.Separator)) {
-		name, values = "brew", []string{"upgrade", "gwt"}
+	if err == nil {
+		prefix := strings.TrimSpace(string(prefixOut))
+		// brew --prefix reports the "opt" symlink (e.g. /opt/homebrew/opt/gwt),
+		// which itself points at the versioned Cellar path. EvalSymlinks
+		// above already resolved the executable all the way through, so the
+		// prefix needs the same resolution or the HasPrefix check below never
+		// matches a brew-installed binary.
+		if resolved, err := filepath.EvalSymlinks(prefix); err == nil {
+			prefix = resolved
+		}
+		if strings.HasPrefix(path, prefix+string(filepath.Separator)) {
+			name, values = "brew", []string{"upgrade", "gwt"}
+		}
 	}
 	cmd := command(name, values...)
 	cmd.Stdout, cmd.Stderr = a.Out, a.Err
