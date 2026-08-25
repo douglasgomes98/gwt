@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/douglasgomes98/gwt/internal/config"
 	"github.com/douglasgomes98/gwt/internal/worktree"
@@ -33,6 +34,9 @@ type Model struct {
 	spinner  int
 	detailed bool
 	loadID   int
+	width    int
+	height   int
+	viewport viewport.Model
 }
 
 type action string
@@ -70,7 +74,7 @@ type spinnerTick struct{}
 var spinnerFrames = []string{"|", "/", "-", "\\"}
 
 func New(cwd string, c config.Config) Model {
-	return Model{cwd: cwd, config: c, selected: map[string]bool{}, message: "loading…", loadID: 1}
+	return Model{cwd: cwd, config: c, selected: map[string]bool{}, message: "loading…", loadID: 1, viewport: viewport.New()}
 }
 func (m Model) Init() tea.Cmd   { return m.reload() }
 func (m Model) reload() tea.Cmd { return tea.Batch(m.load(false), m.load(true)) }
@@ -106,17 +110,33 @@ func (m Model) load(detailed bool) tea.Cmd {
 	}
 }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	newM, cmd := m.dispatch(msg)
+	newM.syncViewport()
+	return newM, cmd
+}
+
+func (m Model) dispatch(msg tea.Msg) (Model, tea.Cmd) {
 	switch x := msg.(type) {
 	case operationResult:
 		return m.handleOperationResult(x)
 	case spinnerTick:
 		return m.handleSpinnerTick()
 	case loaded:
-		return m.handleLoaded(x), nil
+		m = m.handleLoaded(x)
+		m.scrollToCursor()
+		return m, nil
 	case tea.PasteMsg:
 		return m.handlePaste(x), nil
 	case tea.KeyPressMsg:
 		return m.handleKeyPress(x)
+	case tea.WindowSizeMsg:
+		m.width, m.height = x.Width, x.Height
+		m.scrollToCursor()
+		return m, nil
+	case tea.MouseWheelMsg:
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(x)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -242,10 +262,16 @@ func (m Model) handleListNavigation(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		if m.cursor < len(m.items)-1 {
 			m.cursor++
 		}
+		m.scrollToCursor()
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.scrollToCursor()
+	case "pgdown", "ctrl+d":
+		m.viewport.PageDown()
+	case "pgup", "ctrl+u":
+		m.viewport.PageUp()
 	case " ", "space":
 		m.toggleSelection()
 	case "enter":
@@ -561,18 +587,68 @@ func shellCommand(dir string) (*exec.Cmd, error) {
 	return commandAt(sh, dir)
 }
 
+// footerHeight returns the number of screen lines the status/confirmation/
+// palette footer occupies, so the item viewport can be sized to leave room
+// for it.
+func (m Model) footerHeight() int {
+	var footer strings.Builder
+	m.renderStatus(&footer)
+	m.renderConfirmation(&footer)
+	m.renderPalette(&footer)
+	return strings.Count(footer.String(), "\n") + 1
+}
+
 func (m Model) View() tea.View {
 	var b strings.Builder
-	m.renderRows(&b)
+	if m.height == 0 {
+		// No tea.WindowSizeMsg received yet (e.g. non-tty output, tests):
+		// fall back to the unclipped behavior rather than guessing a size.
+		m.renderRows(&b, new(int), new(int))
+	} else {
+		// syncViewport (called after every Update) keeps size, content and
+		// scroll position current, so the viewport is ready to render as-is.
+		b.WriteString(m.viewport.View())
+	}
 	m.renderStatus(&b)
 	m.renderConfirmation(&b)
 	m.renderPalette(&b)
 	view := tea.NewView(b.String())
 	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
 	return view
 }
 
-func (m Model) renderRows(b *strings.Builder) {
+// syncViewport keeps the item viewport's size and content up to date with
+// the current terminal size and item list, leaving the scroll position
+// (yOffset) untouched.
+func (m *Model) syncViewport() {
+	if m.height == 0 {
+		return // View falls back to unclipped rendering; nothing to size yet.
+	}
+	rows, _ := m.rowsContent()
+	m.viewport.SetWidth(m.width)
+	m.viewport.SetHeight(max(1, m.height-m.footerHeight()))
+	m.viewport.SetContent(rows)
+}
+
+// scrollToCursor keeps the highlighted item within the viewport after the
+// cursor or item list changes.
+func (m *Model) scrollToCursor() {
+	_, line := m.rowsContent()
+	m.viewport.EnsureVisible(line, 0, 0)
+}
+
+// rowsContent renders the item rows (branch/root headers included) and
+// reports the visible line offset of m.cursor within them, for use with
+// viewport.EnsureVisible.
+func (m Model) rowsContent() (content string, cursorLine int) {
+	var b strings.Builder
+	line := 0
+	m.renderRows(&b, &line, &cursorLine)
+	return strings.TrimSuffix(b.String(), "\n"), cursorLine
+}
+
+func (m Model) renderRows(b *strings.Builder, line, cursorLine *int) {
 	groups := map[string][]int{}
 	var branches []string
 	var roots []int
@@ -597,22 +673,28 @@ func (m Model) renderRows(b *strings.Builder) {
 		}
 		b.WriteString(header)
 		b.WriteByte('\n')
-		m.renderItemRows(b, groups[branch])
+		*line++
+		m.renderItemRows(b, groups[branch], line, cursorLine)
 	}
 	if len(roots) > 0 {
 		b.WriteString("roots  ")
 		b.WriteString(style("2", rootCount(len(roots))))
 		b.WriteByte('\n')
-		m.renderItemRows(b, roots)
+		*line++
+		m.renderItemRows(b, roots, line, cursorLine)
 	}
 	if len(m.items) == 0 {
 		b.WriteString(style("2", "(no worktrees)"))
 		b.WriteByte('\n')
+		*line++
 	}
 }
 
-func (m Model) renderItemRows(b *strings.Builder, rows []int) {
+func (m Model) renderItemRows(b *strings.Builder, rows []int, line, cursorLine *int) {
 	for _, i := range rows {
+		if i == m.cursor {
+			*cursorLine = *line
+		}
 		item := m.items[i]
 		mark := " "
 		radio := style("2", "○")
@@ -639,6 +721,7 @@ func (m Model) renderItemRows(b *strings.Builder, rows []int) {
 		}
 		b.WriteString(row)
 		b.WriteByte('\n')
+		*line++
 	}
 }
 
