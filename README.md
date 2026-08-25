@@ -145,8 +145,12 @@ The opening flags are mutually exclusive:
 | `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
 | `Enter` | Opens the contextual palette. A single selected root can be opened with the shell, editor, or agent; a group of selected worktrees can be opened in the editor. Root maintenance actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. `rm --all` removes every non-primary worktree in selected roots after confirmation. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots and initialized submodules. |
 | `j` / `k` or arrows | Moves focus in the list or palette. |
+| `PgUp` / `PgDn` or `Ctrl+U` / `Ctrl+D` | Scrolls the list a screen at a time, independent of the focused row. Mouse wheel also scrolls. |
 | `Esc` | Closes the palette without clearing the selection. |
 | `q` | Quits. |
+
+When the list of worktrees is taller than the terminal, it scrolls to keep
+the focused row visible, and the status/palette footer stays pinned below it.
 
 Primary checkout names use bold default terminal text; feature worktree names
 use cyan. Status colors remain semantic: orange for local changes, green for
