@@ -230,15 +230,30 @@ func ValidateUpdate(path, base string) error {
 	return nil
 }
 
+// Update fast-forwards path onto base. Submodules are synced to the
+// currently recorded commit before validating: a submodule pointer left
+// pointing at a different commit than the index shows up as a dirty root,
+// even though nothing in it needs a real merge, so this resolves that first
+// instead of letting it needlessly block the update. Submodules are synced
+// again afterward, since the fast-forward may have recorded new submodule
+// commits that the working tree still needs to check out.
 func Update(path, base string) error {
+	if err := SyncSubmodules(path); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
 	if err := ValidateUpdate(path, base); err != nil {
 		return err
 	}
 	if err := Fetch(path, base); err != nil {
-		return err
+		return fmt.Errorf("%s: %w", path, err)
 	}
-	_, err := git.Run(path, "merge", "--ff-only", "origin/"+base)
-	return err
+	if _, err := git.Run(path, "merge", "--ff-only", "origin/"+base); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	if err := SyncSubmodules(path); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
 }
 
 func ValidateCheckoutBase(path string) error {

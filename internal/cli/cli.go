@@ -130,7 +130,7 @@ Commands:
   rm --all	Remove all worktrees in the current root.
   list [--all|--group]	List worktrees.
   prune	Prune stale worktrees.
-  update [--all]	Update clean roots on the base branch.
+  update [--all]	Update clean roots on the base branch. --all skips and reports roots it can't update instead of stopping.
   upgrade	Upgrade gwt.
   skill install|update --agents|--claude|--codex|--cursor	Install or update the gwt worktree skill for agents.
   init-config	Create a local configuration file.
@@ -412,23 +412,39 @@ func (a App) update(args []string) error {
 		if err != nil {
 			return err
 		}
-		for _, repo := range repos {
-			if err := worktree.ValidateUpdate(repo, a.Config.BaseBranch); err != nil {
-				return err
-			}
-		}
-		for _, repo := range repos {
-			if err := worktree.Update(repo, a.Config.BaseBranch); err != nil {
-				return fmt.Errorf("update --all: result may be partial: %w", err)
-			}
-		}
-		return nil
+		return a.updateAll(repos)
 	}
 	repo, err := worktree.CurrentRepo(a.Dir)
 	if err != nil {
 		return err
 	}
 	return worktree.Update(repo, a.Config.BaseBranch)
+}
+
+// updateAll updates every root it can and skips the rest: a root that is
+// dirty, off-base, or otherwise fails does not block its siblings from
+// updating. Skipped roots are reported at the end instead of aborting the
+// whole run, since a single stray file in one root (an untracked directory
+// left by some tool, say) shouldn't stop every other root from updating.
+func (a App) updateAll(repos []string) error {
+	var skipped []string
+	for _, repo := range repos {
+		if err := worktree.Update(repo, a.Config.BaseBranch); err != nil {
+			skipped = append(skipped, err.Error())
+		}
+	}
+	if len(skipped) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(a.Err, "gwt: skipped roots:"); err != nil {
+		return err
+	}
+	for _, reason := range skipped {
+		if _, err := fmt.Fprintf(a.Err, "  %s\n", reason); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a App) checkoutBase(args []string) error {
