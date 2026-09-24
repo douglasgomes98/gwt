@@ -218,14 +218,14 @@ func ValidateUpdate(path, base string) error {
 		return err
 	}
 	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("root has uncommitted changes")
+		return fmt.Errorf("%s: root has uncommitted changes", path)
 	}
 	branch, err := git.Run(path, "branch", "--show-current")
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(branch) != base {
-		return fmt.Errorf("root must be on %s", base)
+		return fmt.Errorf("%s: root must be on %s", path, base)
 	}
 	return nil
 }
@@ -247,14 +247,14 @@ func ValidateCheckoutBase(path string) error {
 		return err
 	}
 	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("root has uncommitted changes")
+		return fmt.Errorf("%s: root has uncommitted changes", path)
 	}
 	branch, err := git.Run(path, "branch", "--show-current")
 	if err != nil {
 		return err
 	}
 	if strings.TrimSpace(branch) == "" {
-		return fmt.Errorf("refusing to checkout detached root")
+		return fmt.Errorf("%s: refusing to checkout detached root", path)
 	}
 	return nil
 }

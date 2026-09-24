@@ -57,6 +57,12 @@ task.
 Use `gwt list --all` only for discovery, then run `gwt add <branch>`
 individually in each required project.
 
+If the primary checkout is stale against the base branch and the task should
+branch from the latest base, add `--update-root` (`gwt add <branch>
+--update-root`) to fast-forward it first. This fails the same way `gwt
+update` does when the root is dirty or off-base, so only use it on a clean
+primary checkout already on the base branch.
+
 Do not use `gwt open` to change the current agent's directory: it starts a child shell. Use the path emitted by `gwt add` or the `PATH` column from `gwt list`, then `cd` directly. `gwt open root` opens the primary checkout when a child shell, editor, or agent is needed.
 
 ## Safe operations
@@ -64,6 +70,7 @@ Do not use `gwt open` to change the current agent's directory: it starts a child
 - Use `gwt list --group` to locate the current task in sibling repositories;
   use `gwt list --all` to inspect the whole group.
 - Use `gwt add <branch> [base]` only in each project the task requires.
+- `gwt add <branch> --update-root` fetches and fast-forwards the root before creating the worktree; it errors out (without creating anything) if the root is dirty or not on the base branch, same as `gwt update`.
 - Use `gwt prune` only to clean stale Git worktree metadata.
 - Run `gwt update` or `gwt checkout-base` only for a clean primary checkout; use `--all` only when every sibling root should receive the operation.
 - Never run `gwt rm`, `gwt discard`, `git reset --hard`, or `git clean` without explicit user approval; explain the target paths and data that will be removed first. `gwt discard` also recursively discards changes in initialized submodules.
