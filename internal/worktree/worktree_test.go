@@ -496,6 +496,64 @@ func TestUpdateFastForwardsAndRejectsDivergedHistory(t *testing.T) {
 	})
 }
 
+// TestUpdateSyncsSubmodulesBeforeValidating reproduces the real-world case
+// that motivated syncing submodules first: a submodule checked out ahead of
+// the commit recorded in the superproject's index shows up as a dirty root
+// even though nothing there actually needs merging. Update must resolve
+// that itself instead of refusing to update the root over it.
+func TestUpdateSyncsSubmodulesBeforeValidating(t *testing.T) {
+	root, peer := remoteRepos(t)
+	child := filepath.Join(t.TempDir(), "child")
+	if err := os.Mkdir(child, 0750); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "init", "-b", "main")
+	git(t, child, "config", "user.email", "test@example.com")
+	git(t, child, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(child, "README"), []byte("first"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "add", ".")
+	git(t, child, "commit", "-m", "first")
+	git(t, root, "-c", "protocol.file.allow=always", "submodule", "add", child, "deps/child")
+	git(t, root, "commit", "-am", "add submodule")
+	git(t, root, "push")
+
+	if err := os.WriteFile(filepath.Join(child, "README"), []byte("second"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, child, "commit", "-am", "second")
+	submodule := filepath.Join(root, "deps", "child")
+	git(t, submodule, "-c", "protocol.file.allow=always", "pull", "origin", "main")
+
+	status, err := worktree.List(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status[0].Dirty {
+		t.Fatal("fixture setup did not reproduce a submodule-only dirty root")
+	}
+
+	git(t, peer, "pull")
+	if err := os.WriteFile(filepath.Join(peer, "peer"), []byte("peer"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, peer, "add", ".")
+	git(t, peer, "commit", "-m", "peer")
+	git(t, peer, "push")
+
+	if err := worktree.Update(root, "main"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "peer")); err != nil {
+		t.Fatalf("root did not fast-forward: %v", err)
+	}
+	readme, err := os.ReadFile(filepath.Join(submodule, "README")) // #nosec G304 -- test reads its own fixed fixture path.
+	if err != nil || string(readme) != "first" {
+		t.Fatalf("submodule README: %q, %v, want it reset to the recorded commit", readme, err)
+	}
+}
+
 func TestWorktreeErrorsAndMaintenance(t *testing.T) {
 	r := repo(t)
 	c := config.Config{Layout: "sibling"}

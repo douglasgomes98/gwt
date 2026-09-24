@@ -681,20 +681,10 @@ func TestUpdateAndCheckoutBaseAllApplyToSiblingRoots(t *testing.T) {
 	}
 }
 
-func TestAllRootCommandsPrevalidateBeforeMutating(t *testing.T) {
+func TestCheckoutBaseAllPrevalidatesBeforeMutating(t *testing.T) {
 	parent := t.TempDir()
-	api, apiPeer := remoteRepo(t, parent, "api")
+	api, _ := remoteRepo(t, parent, "api")
 	web, _ := remoteRepo(t, parent, "web")
-	if err := os.WriteFile(filepath.Join(apiPeer, "remote"), []byte("new"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"add", "remote"}, {"commit", "-m", "remote"}, {"push"}} {
-		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
-		cmd.Dir = apiPeer
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
 	if err := os.WriteFile(filepath.Join(web, "dirty"), []byte("x"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -713,16 +703,41 @@ func TestAllRootCommandsPrevalidateBeforeMutating(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(out)) != "feature" {
 		t.Fatalf("api branch changed before prevalidation: %q, %v", out, err)
 	}
-	cmd = exec.Command("git", "checkout", "main") // #nosec G204 -- test invokes Git with fixed arguments.
-	cmd.Dir = api
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git checkout: %v: %s", err, out)
+}
+
+// TestUpdateAllSkipsFailingRootsAndUpdatesTheRest covers the best-effort
+// contract: a dirty or off-base sibling root must not stop every other root
+// from updating. Skipped roots are reported to stderr instead of aborting.
+func TestUpdateAllSkipsFailingRootsAndUpdatesTheRest(t *testing.T) {
+	parent := t.TempDir()
+	api, apiPeer := remoteRepo(t, parent, "api")
+	web, _ := remoteRepo(t, parent, "web")
+	if err := os.WriteFile(filepath.Join(apiPeer, "remote"), []byte("new"), 0600); err != nil {
+		t.Fatal(err)
 	}
-	if err := a.Run([]string{"update", "--all"}); err == nil || !strings.Contains(err.Error(), "root has uncommitted changes") {
-		t.Fatalf("update --all error = %v, want dirty-root failure", err)
+	for _, args := range [][]string{{"add", "remote"}, {"commit", "-m", "remote"}, {"push"}} {
+		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
+		cmd.Dir = apiPeer
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
 	}
-	if _, err := os.Stat(filepath.Join(api, "remote")); !os.IsNotExist(err) {
-		t.Fatalf("api updated before prevalidation: %v", err)
+	if err := os.WriteFile(filepath.Join(web, "dirty"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var errBuf bytes.Buffer
+	a := New(&bytes.Buffer{}, &errBuf, api, "", config.Config{BaseBranch: "main"})
+	if err := a.Run([]string{"update", "--all"}); err != nil {
+		t.Fatalf("update --all = %v, want a nil error with skipped roots reported", err)
+	}
+	if _, err := os.Stat(filepath.Join(api, "remote")); err != nil {
+		t.Fatalf("clean sibling root did not update: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(web, "remote")); !os.IsNotExist(err) {
+		t.Fatalf("dirty root should not have been updated: %v", err)
+	}
+	if !strings.Contains(errBuf.String(), web) || !strings.Contains(errBuf.String(), "root has uncommitted changes") {
+		t.Fatalf("stderr = %q, want it to report the skipped dirty root", errBuf.String())
 	}
 }
 

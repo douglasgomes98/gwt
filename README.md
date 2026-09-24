@@ -127,7 +127,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt list --all` | Lists every worktree in sibling repositories. |
 | `gwt list --group` | Lists the current branch's worktrees in sibling repositories. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
-| `gwt update [--all]` | Updates the current repository's clean primary checkout on the base branch. `--all` updates sibling roots too. |
+| `gwt update [--all]` | Updates the current repository's clean primary checkout on the base branch, syncing submodules to the recorded commit before and after. `--all` updates every sibling root it can and reports the rest (dirty, off-base, or otherwise failing) as skipped instead of stopping at the first one. |
 | `gwt upgrade` | Updates the installed CLI through Homebrew or Go, whichever manages the running binary. Errors instead of guessing if Homebrew has gwt installed but a version-manager shim (asdf, mise, pyenv, ...) earlier in `$PATH` is running a different gwt binary. |
 | `gwt skill install --agents|--claude|--codex|--cursor` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
 | `gwt skill update --agents|--claude|--codex|--cursor` | Replaces the selected `gwt-worktrees` skill with the version bundled in gwt. |
