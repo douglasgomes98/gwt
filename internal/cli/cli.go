@@ -117,7 +117,7 @@ func (a App) help(args []string) error {
 	_, err := fmt.Fprint(tw, `Usage: gwt <command>
 
 Commands:
-  add <branch> [base] [-e|-a] [--all]	Create a worktree.
+  add <branch> [base] [-e|-a] [--all] [--update-root]	Create a worktree.
   open <branch|root> [-e|-a]	Open a worktree.
   rm <branch> [--all]	Remove a worktree.
   rm --all	Remove all worktrees in the current root.
@@ -168,15 +168,15 @@ func (a App) initConfig(args []string) error {
 }
 
 func (a App) add(args []string) error {
-	flags, values, err := parse(args, "--all", "-e", "-a")
+	flags, values, err := parse(args, "--all", "-e", "-a", "--update-root")
 	if err != nil {
 		return err
 	}
 	if exclusive(flags, "--all", "-e", "-a") {
-		return fmt.Errorf("usage: gwt add <branch> [base] [-e|-a] [--all]")
+		return fmt.Errorf("usage: gwt add <branch> [base] [-e|-a] [--all] [--update-root]")
 	}
 	if len(values) < 1 || len(values) > 2 {
-		return fmt.Errorf("usage: gwt add <branch> [base] [-e|-a] [--all]")
+		return fmt.Errorf("usage: gwt add <branch> [base] [-e|-a] [--all] [--update-root]")
 	}
 	base := a.Config.BaseBranch
 	if len(values) == 2 {
@@ -196,6 +196,11 @@ func (a App) add(args []string) error {
 		repos = []string{repo}
 	}
 	for _, repo := range repos {
+		if flags["--update-root"] {
+			if err := a.addUpdateRoot(repo, base, flags["--all"]); err != nil {
+				return err
+			}
+		}
 		path, err := worktree.Add(repo, values[0], base, a.Config)
 		if err != nil {
 			if flags["--all"] {
@@ -215,6 +220,16 @@ func (a App) add(args []string) error {
 	}
 	return nil
 }
+func (a App) addUpdateRoot(repo, base string, all bool) error {
+	if err := worktree.Update(repo, base); err != nil {
+		if all {
+			return fmt.Errorf("add --all: result may be partial: %w", err)
+		}
+		return fmt.Errorf("update root before add: %w", err)
+	}
+	return nil
+}
+
 func (a App) open(args []string) error {
 	flags, values, err := parse(args, "-e", "-a")
 	if err != nil {

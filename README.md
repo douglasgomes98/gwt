@@ -53,6 +53,9 @@ gwt add AG-123
 # creates AG-123 in api and web
 gwt add AG-123 --all
 
+# fast-forwards the primary checkout onto the base branch before creating AG-123
+gwt add AG-123 --update-root
+
 # lists every worktree in api and web
 gwt list --all
 
@@ -116,7 +119,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | Command | Description |
 | --- | --- |
 | `gwt` | Opens the TUI. |
-| `gwt add <branch> [base] [--all] [-e\|-a]` | Creates a worktree. `--all` creates one in sibling repositories. |
+| `gwt add <branch> [base] [--all] [-e\|-a] [--update-root]` | Creates a worktree. `--all` creates one in sibling repositories. `--update-root` fast-forwards the target root onto `base` first, failing the same way `gwt update` does on a dirty or off-base root. |
 | `gwt open <branch\|root> [-e\|-a]` | Opens a subshell (default), editor, or agent. `root` opens the primary checkout. |
 | `gwt rm <branch> [--all]` | Force-removes the current worktree or the same branch from sibling repositories. The primary checkout is never removed. |
 | `gwt rm --all` | Force-removes every non-primary worktree in the current repository. |

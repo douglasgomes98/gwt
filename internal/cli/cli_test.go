@@ -752,6 +752,71 @@ func TestUpdateRejectsWrongBranchBeforeFetch(t *testing.T) {
 	}
 }
 
+func TestUpdateValidationErrorsNameTheOffendingRoot(t *testing.T) {
+	dir := testRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{BaseBranch: "main"})
+	err := a.Run([]string{"update"})
+	if err == nil || !strings.Contains(err.Error(), dir) {
+		t.Fatalf("update error = %v, want it to name %s", err, dir)
+	}
+}
+
+func TestAddUpdateRootFastForwardsBeforeCreatingWorktree(t *testing.T) {
+	parent := t.TempDir()
+	root, peer := remoteRepo(t, parent, "api")
+	if err := os.WriteFile(filepath.Join(peer, "new-file"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "new-file"}, {"commit", "-m", "peer commit"}, {"push"}} {
+		cmd := exec.Command("git", args...) // #nosec G204 -- test invokes Git with fixed arguments.
+		cmd.Dir = peer
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, root, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1", "--update-root"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "new-file")); err != nil {
+		t.Fatalf("root not updated before add: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(root), filepath.Base(root)+".AG-1", "new-file")); err != nil {
+		t.Fatalf("new worktree missing root's fetched commit: %v", err)
+	}
+}
+
+func TestAddUpdateRootRejectsDirtyRootBeforeCreatingWorktree(t *testing.T) {
+	dir := testRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "dirty"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, dir, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	if err := a.Run([]string{"add", "AG-1", "--update-root"}); err == nil || !strings.Contains(err.Error(), "root has uncommitted changes") {
+		t.Fatalf("add --update-root error = %v, want dirty-root failure", err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(dir), filepath.Base(dir)+".AG-1")); !os.IsNotExist(err) {
+		t.Fatalf("worktree created despite failed root update: %v", err)
+	}
+}
+
+func TestAddAllUpdateRootReportsPartialFailure(t *testing.T) {
+	parent := t.TempDir()
+	api, _ := remoteRepo(t, parent, "api")
+	web, _ := remoteRepo(t, parent, "web")
+	if err := os.WriteFile(filepath.Join(web, "dirty"), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := New(&bytes.Buffer{}, &bytes.Buffer{}, api, "", config.Config{Layout: "sibling", BaseBranch: "main"})
+	err := a.Run([]string{"add", "AG-1", "--all", "--update-root"})
+	if err == nil || !strings.Contains(err.Error(), "add --all: result may be partial") || !strings.Contains(err.Error(), "root has uncommitted changes") {
+		t.Fatalf("add --all --update-root error = %v, want partial dirty-root failure", err)
+	}
+}
+
 func TestCheckoutBaseAndDiscardCommands(t *testing.T) {
 	dir := testRepo(t)
 	cmd := exec.Command("git", "checkout", "-b", "feature")
