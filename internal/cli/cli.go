@@ -77,9 +77,9 @@ func (a App) upgrade(args []string) error {
 	if resolved, err := filepath.EvalSymlinks(path); err == nil {
 		path = resolved
 	}
-	prefixOut, err := command("brew", "--prefix", "gwt").Output()
+	prefixOut, brewErr := command("brew", "--prefix", "gwt").Output()
 	name, values := "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}
-	if err == nil {
+	if brewErr == nil {
 		prefix := strings.TrimSpace(string(prefixOut))
 		// brew --prefix reports the "opt" symlink (e.g. /opt/homebrew/opt/gwt),
 		// which itself points at the versioned Cellar path. EvalSymlinks
@@ -91,6 +91,13 @@ func (a App) upgrade(args []string) error {
 		}
 		if strings.HasPrefix(path, prefix+string(filepath.Separator)) {
 			name, values = "brew", []string{"upgrade", "gwt"}
+		} else {
+			// Homebrew has gwt installed, but the binary that actually ran is
+			// somewhere else. A version manager shim (asdf, mise, pyenv, ...)
+			// earlier in $PATH is shadowing the Homebrew install, so silently
+			// running "go install" would keep reinstalling that shadow copy
+			// instead of the one Homebrew manages.
+			return fmt.Errorf("running gwt (%s) is not the Homebrew install at %s: another gwt earlier in $PATH is shadowing it (check for a version-manager shim); run \"brew upgrade gwt\" directly, or fix $PATH order", path, prefix)
 		}
 	}
 	cmd := command(name, values...)

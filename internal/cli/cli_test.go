@@ -896,6 +896,36 @@ func TestUpgradeDetectsBrewInstallThroughSymlinkedPrefix(t *testing.T) {
 	}
 }
 
+// TestUpgradeErrorsWhenPathShadowsBrewInstall covers a version-manager shim
+// (asdf, mise, pyenv, ...) placed earlier in $PATH than Homebrew's bin
+// directory: the running binary resolves outside the Homebrew prefix even
+// though Homebrew has gwt installed. Silently falling back to "go install"
+// would just reinstall the shadow copy forever, so upgrade must fail loudly
+// instead of guessing.
+func TestUpgradeErrorsWhenPathShadowsBrewInstall(t *testing.T) {
+	oldExecutable, oldCommand := executable, command
+	t.Cleanup(func() { executable, command = oldExecutable, oldCommand })
+	shadow := filepath.Join(t.TempDir(), "shim-managed", "gwt")
+	brewPrefix := filepath.Join(t.TempDir(), "homebrew")
+	executable = func() (string, error) { return shadow, nil }
+	command = func(name string, args ...string) *exec.Cmd {
+		if name == "brew" && slices.Equal(args, []string{"--prefix", "gwt"}) {
+			return exec.Command("printf", "%s", brewPrefix) // #nosec G204 -- prefix comes from a fixed test fixture.
+		}
+		t.Fatalf("command = %s %v", name, args)
+		return nil
+	}
+	err := New(io.Discard, io.Discard, t.TempDir(), "", config.Config{}).Run([]string{"upgrade"})
+	if err == nil {
+		t.Fatal("expected an error when the running binary is shadowed")
+	}
+	for _, want := range []string{shadow, brewPrefix, "brew upgrade gwt"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %v, want it to mention %q", err, want)
+		}
+	}
+}
+
 func TestHelpListsCommands(t *testing.T) {
 	var out bytes.Buffer
 	if err := New(&out, &bytes.Buffer{}, t.TempDir(), "test", config.Config{}).Run([]string{"help"}); err != nil {
