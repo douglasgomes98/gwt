@@ -184,8 +184,10 @@ func Remove(repo, branch string) error {
 	if item.Detached {
 		return fmt.Errorf("refusing to remove detached worktree")
 	}
-	_, err = git.Run(repo, "worktree", "remove", "--force", "--force", item.Path)
-	return err
+	if _, err := git.Run(repo, "worktree", "remove", "--force", "--force", item.Path); err != nil {
+		return err
+	}
+	return removeIfEmptyParent(item.Path, repo)
 }
 
 func RemoveAll(repo string) (int, error) {
@@ -206,9 +208,37 @@ func RemoveAll(repo string) (int, error) {
 		if _, err := git.Run(repo, "worktree", "remove", "--force", "--force", item.Path); err != nil {
 			return removed, err
 		}
+		if err := removeIfEmptyParent(item.Path, repo); err != nil {
+			return removed, err
+		}
 		removed++
 	}
 	return removed, nil
+}
+
+// removeIfEmptyParent deletes the removed worktree's parent directory when a
+// grouping layout (grouped, branch, inside) leaves it empty. It never
+// touches the directory sibling repositories live in, which the sibling
+// layout uses directly as the worktree's parent.
+func removeIfEmptyParent(path, repo string) error {
+	parent := filepath.Dir(path)
+	if parent == filepath.Dir(repo) {
+		return nil
+	}
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if len(entries) != 0 {
+		return nil
+	}
+	if err := os.Remove(parent); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func Fetch(repo, base string) error { _, err := git.Run(repo, "fetch", "origin", base); return err }
