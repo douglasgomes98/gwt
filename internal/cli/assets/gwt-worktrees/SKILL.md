@@ -65,6 +65,30 @@ primary checkout already on the base branch.
 
 Do not use `gwt open` to change the current agent's directory: it starts a child shell. Use the path emitted by `gwt add` or the `PATH` column from `gwt list`, then `cd` directly. `gwt open root` opens the primary checkout when a child shell, editor, or agent is needed.
 
+### Checking and changing the layout config
+
+Where `gwt add` places a worktree is not something the agent chooses per
+call — it comes from the `layout` setting the user's machine already has, in
+a project-local `gwt.yml` or the global `~/.config/gwt/config.yml`. Before
+relying on where a worktree will land, check for one:
+
+```sh
+cat gwt.yml 2>/dev/null || cat ~/.config/gwt/config.yml 2>/dev/null
+```
+
+No file, or no `layout` key, means the `sibling` default applies. If worktrees
+for a multi-repo task keep scattering in a way the user doesn't want, don't
+silently create or edit a config file — ask first, since it changes where
+every future `gwt add` in that project (or, for the global file, every
+project) lands, not just the current task. If the user agrees to add or
+change one, use `gwt init-config` to create a local `gwt.yml` from the
+currently active values (it never overwrites an existing file), then edit its
+`layout:` field rather than hand-writing the file. Never touch
+`~/.config/gwt/config.yml` without explicit confirmation, since it is the
+user's global default across every project. `gwt add` never relocates a
+worktree already created under a different layout — a layout change only
+takes effect for worktrees created afterward.
+
 ## Safe operations
 
 - Use `gwt list --group` to locate the current task in sibling repositories;
