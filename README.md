@@ -188,9 +188,15 @@ the active configuration values and never overwrites an existing file.
 | `sibling` (default) | `../api.AG-123` |
 | `grouped` | `../api.worktrees/api.AG-123` |
 | `inside` | `api/.worktrees/AG-123` |
+| `branch` | `../AG-123/api` |
 
 The `inside` layout does not change `.gitignore`; add `.worktrees/` if you do
 not want it to appear as untracked content in the primary checkout.
+
+The `branch` layout groups worktrees by task instead of by repository: every
+sibling repository's worktree for branch `AG-123` lands under a shared
+`../AG-123/` directory, one subfolder per repository name. This keeps all the
+repos involved in one task together when the task spans a sibling Git group.
 
 ## Development
 

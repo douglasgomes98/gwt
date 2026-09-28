@@ -143,6 +143,8 @@ func Path(repo, branch string, c config.Config) string {
 		return filepath.Join(repo, ".worktrees", branch)
 	case "grouped":
 		return filepath.Join(parent, name+".worktrees", name+"."+branch)
+	case "branch":
+		return filepath.Join(parent, branch, name)
 	default:
 		return filepath.Join(parent, name+"."+branch)
 	}
