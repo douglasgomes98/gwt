@@ -94,7 +94,7 @@ func configPaths(start string) []string {
 func apply(raw fileConfig, defaults Config) (Config, error) {
 	config := defaults
 	if raw.Layout != nil {
-		if *raw.Layout != "sibling" && *raw.Layout != "grouped" && *raw.Layout != "inside" {
+		if *raw.Layout != "sibling" && *raw.Layout != "grouped" && *raw.Layout != "inside" && *raw.Layout != "branch" {
 			return Config{}, fmt.Errorf("invalid layout %q", *raw.Layout)
 		}
 		config.Layout = *raw.Layout
