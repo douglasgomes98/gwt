@@ -77,6 +77,85 @@ func TestAddAndRemoveWithRealGit(t *testing.T) {
 	}
 }
 
+func TestRemoveCleansUpEmptyGroupingDirectory(t *testing.T) {
+	r := repo(t)
+	for _, layout := range []string{"grouped", "branch"} {
+		path, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: layout})
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent := filepath.Dir(path)
+		if err := worktree.Remove(r, "AG-1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(parent); !os.IsNotExist(err) {
+			t.Fatalf("layout %s: grouping directory still exists: %v", layout, err)
+		}
+	}
+}
+
+func TestRemoveKeepsGroupingDirectoryWhileSiblingWorktreesRemain(t *testing.T) {
+	api := repo(t)
+	web := filepath.Join(filepath.Dir(api), "web")
+	if err := os.Mkdir(web, 0750); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-b", "main")
+	git(t, web, "config", "user.email", "test@example.com")
+	git(t, web, "config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(web, "README"), []byte("ok"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "add", ".")
+	git(t, web, "commit", "-m", "init")
+
+	c := config.Config{Layout: "branch"}
+	apiPath, err := worktree.Add(api, "AG-1", "main", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	webPath, err := worktree.Add(web, "AG-1", "main", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grouping := filepath.Dir(apiPath)
+	if filepath.Dir(webPath) != grouping {
+		t.Fatalf("expected shared grouping directory, got %s and %s", apiPath, webPath)
+	}
+
+	if err := worktree.Remove(api, "AG-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(grouping); err != nil {
+		t.Fatalf("grouping directory removed while web worktree remains: %v", err)
+	}
+
+	if err := worktree.Remove(web, "AG-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(grouping); !os.IsNotExist(err) {
+		t.Fatalf("grouping directory still exists after last worktree removed: %v", err)
+	}
+}
+
+func TestRemoveNeverDeletesSiblingLayoutParent(t *testing.T) {
+	r := repo(t)
+	path, err := worktree.Add(r, "AG-1", "main", config.Config{Layout: "sibling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Dir(path)
+	if err := worktree.Remove(r, "AG-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(parent); err != nil {
+		t.Fatalf("sibling parent directory removed: %v", err)
+	}
+	if _, err := os.Stat(r); err != nil {
+		t.Fatalf("primary checkout removed: %v", err)
+	}
+}
+
 func TestRemoveNeverDeletesPrimaryCheckout(t *testing.T) {
 	r := repo(t)
 	if err := worktree.Remove(r, "main"); err == nil {
@@ -113,6 +192,26 @@ func TestRemoveAllRemovesOnlyNonPrimaryWorktrees(t *testing.T) {
 	items, err := worktree.ListFast(r)
 	if err != nil || len(items) != 1 || !items[0].Primary {
 		t.Fatalf("items: %#v, %v", items, err)
+	}
+}
+
+func TestRemoveAllCleansUpEmptyGroupingDirectories(t *testing.T) {
+	r := repo(t)
+	c := config.Config{Layout: "grouped"}
+	first, err := worktree.Add(r, "AG-1", "main", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worktree.Add(r, "AG-2", "main", c); err != nil {
+		t.Fatal(err)
+	}
+	grouping := filepath.Dir(first)
+	removed, err := worktree.RemoveAll(r)
+	if err != nil || removed != 2 {
+		t.Fatalf("RemoveAll: %d, %v", removed, err)
+	}
+	if _, err := os.Stat(grouping); !os.IsNotExist(err) {
+		t.Fatalf("grouping directory still exists: %v", err)
 	}
 }
 

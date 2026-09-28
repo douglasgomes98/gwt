@@ -198,6 +198,10 @@ sibling repository's worktree for branch `AG-123` lands under a shared
 `../AG-123/` directory, one subfolder per repository name. This keeps all the
 repos involved in one task together when the task spans a sibling Git group.
 
+`gwt rm` and `gwt rm --all` remove the shared grouping directory (`grouped`,
+`branch`, or `inside`) once it no longer holds any worktree, so removing the
+last branch from a group does not leave an empty directory behind.
+
 ## Development
 
 Install GolangCI-Lint v2 before running the lint target. Its committed policy is
