@@ -85,8 +85,14 @@ func rejectNullFields(data []byte) error {
 
 func configPaths(start string) []string {
 	paths := []string{filepath.Join(start, "gwt.yml")}
+	if dir, err := os.UserConfigDir(); err == nil {
+		paths = append(paths, filepath.Join(dir, "gwt", "config.yml"))
+	}
 	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".config/gwt/config.yml"))
+		paths = append(paths,
+			filepath.Join(home, ".config", "gwt", "config.yml"),
+			filepath.Join(home, "gwt.yml"),
+		)
 	}
 	return paths
 }

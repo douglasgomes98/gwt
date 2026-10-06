@@ -7,6 +7,21 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "gwt-config-home")
+	if err != nil {
+		panic(err)
+	}
+	for key, value := range map[string]string{"HOME": home, "XDG_CONFIG_HOME": filepath.Join(home, "xdg")} {
+		if err := os.Setenv(key, value); err != nil {
+			panic(err)
+		}
+	}
+	code := m.Run()
+	_ = os.RemoveAll(home)
+	os.Exit(code)
+}
+
 func TestLoadDefaultsAndOptionalCommands(t *testing.T) {
 	dir := t.TempDir()
 	got, err := Load(dir)
@@ -110,5 +125,47 @@ func TestLoadRejectsTopLevelNullConfig(t *testing.T) {
 	_, err := Load(dir)
 	if err == nil || !strings.Contains(err.Error(), path) {
 		t.Fatalf("error %v does not include %q", err, path)
+	}
+}
+
+func TestLoadFallsBackToUserConfigLocations(t *testing.T) {
+	for name, rel := range map[string]string{
+		"xdg":  filepath.Join("xdg", "gwt", "config.yml"),
+		"dot":  filepath.Join(".config", "gwt", "config.yml"),
+		"home": "gwt.yml",
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+			path := filepath.Join(home, rel)
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("layout: branch\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(t.TempDir())
+			if err != nil || got.Layout != "branch" {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestLoadPrefersLocalOverUserConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	if err := os.WriteFile(filepath.Join(home, "gwt.yml"), []byte("layout: branch\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gwt.yml"), []byte("layout: inside\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(dir)
+	if err != nil || got.Layout != "inside" {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 }
