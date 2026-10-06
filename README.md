@@ -165,8 +165,16 @@ progress indicator until the operation completes.
 
 ## Configuration
 
-Create `gwt.yml` in the directory where you run the command or at
-`~/.config/gwt/config.yml`:
+`gwt` uses the first config file it finds, in this order (files are not
+merged):
+
+1. `gwt.yml` in the directory where you run the command.
+2. `$XDG_CONFIG_HOME/gwt/config.yml` (on Linux; the platform user config
+   directory elsewhere).
+3. `~/.config/gwt/config.yml`.
+4. `~/gwt.yml`.
+
+Example:
 
 ```yaml
 layout: sibling
