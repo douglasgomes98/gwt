@@ -2,14 +2,13 @@
 set -eu
 
 tag=${1:?release tag is required}
-tap_dir=${TAP_DIR:?TAP_DIR is required}
+formula=Formula/gwt.rb
 version=${tag#v}
 url="https://github.com/douglasgomes98/gwt/archive/refs/tags/${tag}.tar.gz"
 sha=$(curl --fail --location --silent --show-error "$url" | shasum -a 256 | awk '{print $1}')
 
 goreleaser release --clean
-mkdir -p "$tap_dir/Formula"
-cat >"$tap_dir/Formula/gwt.rb" <<EOF
+cat >"$formula" <<EOF
 class Gwt < Formula
   desc "Manage Git worktrees across sibling repositories"
   homepage "https://github.com/douglasgomes98/gwt"
@@ -28,6 +27,7 @@ class Gwt < Formula
   end
 end
 EOF
-git -C "$tap_dir" add Formula/gwt.rb
-git -C "$tap_dir" -c user.name='gwt release bot' -c user.email='gwt-release@users.noreply.github.com' commit -m "Brew formula update for gwt $tag"
-git -C "$tap_dir" push
+git add "$formula"
+git -c user.name='gwt release bot' -c user.email='gwt-release@users.noreply.github.com' commit -m "chore(formula): update gwt to $tag"
+git pull --rebase origin main
+git push origin HEAD:main
