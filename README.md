@@ -18,7 +18,16 @@ go install github.com/douglasgomes98/gwt/cmd/gwt@latest
 With Homebrew:
 
 ```sh
-brew tap douglasgomes98/tap
+brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
+brew install gwt
+```
+
+Migrating from the old `douglasgomes98/tap`, which no longer receives updates:
+
+```sh
+brew uninstall gwt
+brew untap douglasgomes98/tap
+brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
 brew install gwt
 ```
 
@@ -222,10 +231,9 @@ Releases are created automatically from Conventional Commit messages merged to
 `main`: `fix:` publishes a patch, `feat:` publishes a minor version, and a
 breaking-change marker publishes a major version. When using squash merge, use
 a Conventional Commit as the PR title because it becomes the commit analyzed
-for the release. Before the first release, create the public
-`douglasgomes98/homebrew-tap` repository and add a fine-grained
-`TAP_GITHUB_TOKEN` repository secret with Contents read/write permission for
-that tap.
+for the release. Each release also commits an updated `Formula/gwt.rb` to
+`main`, so this repository doubles as the Homebrew tap (no separate tap
+repository or token is needed).
 
 ```sh
 make deps      # downloads Go and release-tool dependencies
