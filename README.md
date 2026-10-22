@@ -223,11 +223,18 @@ Releases are created automatically from Conventional Commit messages merged to
 breaking-change marker publishes a major version. When using squash merge, use
 a Conventional Commit as the PR title because it becomes the commit analyzed
 for the release. Each release also commits an updated `Formula/gwt.rb` to
-`main`, so this repository doubles as the Homebrew tap. It also mirrors the
-formula to the legacy `douglasgomes98/homebrew-tap` repository, using a
-fine-grained `TAP_GITHUB_TOKEN` secret with Contents read/write permission on
-that repository, so existing `brew upgrade gwt` users keep receiving updates.
-New installs should use the tap in this repository.
+`main`, so this repository doubles as the Homebrew tap (no separate tap
+repository or token is needed).
+
+If you previously installed from the old `douglasgomes98/tap`, which no longer
+receives updates, switch with:
+
+```sh
+brew uninstall gwt
+brew untap douglasgomes98/tap
+brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
+brew install gwt
+```
 
 ```sh
 make deps      # downloads Go and release-tool dependencies

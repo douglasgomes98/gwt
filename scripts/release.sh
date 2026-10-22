@@ -31,13 +31,3 @@ git add "$formula"
 git -c user.name='gwt release bot' -c user.email='gwt-release@users.noreply.github.com' commit -m "chore(formula): update gwt to $tag"
 git pull --rebase origin main
 git push origin HEAD:main
-
-# Legacy mirror: users who installed from douglasgomes98/tap keep receiving
-# updates through "brew upgrade". Skipped when no mirror checkout is provided.
-if [ -n "${TAP_DIR:-}" ]; then
-	mkdir -p "$TAP_DIR/Formula"
-	cp "$formula" "$TAP_DIR/Formula/gwt.rb"
-	git -C "$TAP_DIR" add Formula/gwt.rb
-	git -C "$TAP_DIR" -c user.name='gwt release bot' -c user.email='gwt-release@users.noreply.github.com' commit -m "Brew formula update for gwt $tag"
-	git -C "$TAP_DIR" push
-fi
