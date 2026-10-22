@@ -19,7 +19,7 @@ With Homebrew:
 
 ```sh
 brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
-brew install gwt
+brew install douglasgomes98/gwt/gwt
 ```
 
 Migrating from the old `douglasgomes98/tap`, which no longer receives updates:
@@ -28,7 +28,7 @@ Migrating from the old `douglasgomes98/tap`, which no longer receives updates:
 brew uninstall gwt
 brew untap douglasgomes98/tap
 brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
-brew install gwt
+brew install douglasgomes98/gwt/gwt
 ```
 
 For local development:
