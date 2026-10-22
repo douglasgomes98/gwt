@@ -22,6 +22,15 @@ brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
 brew install gwt
 ```
 
+Migrating from the old `douglasgomes98/tap`, which no longer receives updates:
+
+```sh
+brew uninstall gwt
+brew untap douglasgomes98/tap
+brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
+brew install gwt
+```
+
 For local development:
 
 ```sh
@@ -225,16 +234,6 @@ a Conventional Commit as the PR title because it becomes the commit analyzed
 for the release. Each release also commits an updated `Formula/gwt.rb` to
 `main`, so this repository doubles as the Homebrew tap (no separate tap
 repository or token is needed).
-
-If you previously installed from the old `douglasgomes98/tap`, which no longer
-receives updates, switch with:
-
-```sh
-brew uninstall gwt
-brew untap douglasgomes98/tap
-brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
-brew install gwt
-```
 
 ```sh
 make deps      # downloads Go and release-tool dependencies
