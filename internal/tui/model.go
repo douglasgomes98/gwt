@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -137,6 +138,8 @@ func (m Model) dispatch(msg tea.Msg) (Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(x)
 		return m, cmd
+	case tea.MouseClickMsg:
+		return m.handleClick(x.Mouse()), nil
 	}
 	return m, nil
 }
@@ -259,19 +262,17 @@ func (m Model) handleListNavigation(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 		m.clearSelection()
 	case "down", "j":
-		if m.cursor < len(m.items)-1 {
-			m.cursor++
-		}
-		m.scrollToCursor()
+		m.moveCursor(1)
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-		m.scrollToCursor()
+		m.moveCursor(-1)
 	case "pgdown", "ctrl+d":
-		m.viewport.PageDown()
+		m.moveCursor(m.pageSize())
 	case "pgup", "ctrl+u":
-		m.viewport.PageUp()
+		m.moveCursor(-m.pageSize())
+	case "end", "G":
+		m.moveCursor(len(m.items))
+	case "home", "g":
+		m.moveCursor(-len(m.items))
 	case " ", "space":
 		m.toggleSelection()
 	case "enter":
@@ -280,6 +281,49 @@ func (m Model) handleListNavigation(key tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// moveCursor moves the focused row by delta items, clamped to the list, and
+// scrolls to keep it visible.
+func (m *Model) moveCursor(delta int) {
+	m.cursor = min(max(0, m.cursor+delta), max(0, len(m.items)-1))
+	m.scrollToCursor()
+}
+
+// pageSize is how many items PgUp/PgDn move: the visible list height, or a
+// single item before the terminal size is known.
+func (m Model) pageSize() int {
+	if m.height == 0 {
+		return 1
+	}
+	return max(1, m.viewport.Height())
+}
+
+// bulletReach is the last screen column a click may land on and still count
+// as a click on the row's ○/◉ radio, which is drawn at column 2.
+const bulletReach = 3
+
+// handleClick focuses the clicked item row; a click on its radio also
+// toggles the selection exactly as Space does. Clicks are ignored while the
+// palette, confirmation or branch prompt is open.
+func (m Model) handleClick(mouse tea.Mouse) Model {
+	if mouse.Button != tea.MouseLeft || m.palette || m.confirm || m.input {
+		return m
+	}
+	m.result = ""
+	if m.height > 0 && mouse.Y >= m.viewport.Height() {
+		return m
+	}
+	_, lines := m.rowsContent()
+	line := mouse.Y + m.viewport.YOffset()
+	if mouse.Y < 0 || line >= len(lines) || lines[line] < 0 {
+		return m
+	}
+	m.cursor = lines[line]
+	if mouse.X <= bulletReach {
+		m.toggleSelection()
+	}
+	return m
 }
 
 func (m *Model) toggleSelection() {
@@ -603,7 +647,7 @@ func (m Model) View() tea.View {
 	if m.height == 0 {
 		// No tea.WindowSizeMsg received yet (e.g. non-tty output, tests):
 		// fall back to the unclipped behavior rather than guessing a size.
-		m.renderRows(&b, new(int), new(int))
+		m.renderRows(&b, new([]int))
 	} else {
 		// syncViewport (called after every Update) keeps size, content and
 		// scroll position current, so the viewport is ready to render as-is.
@@ -634,21 +678,20 @@ func (m *Model) syncViewport() {
 // scrollToCursor keeps the highlighted item within the viewport after the
 // cursor or item list changes.
 func (m *Model) scrollToCursor() {
-	_, line := m.rowsContent()
-	m.viewport.EnsureVisible(line, 0, 0)
+	_, lines := m.rowsContent()
+	m.viewport.EnsureVisible(max(0, slices.Index(lines, m.cursor)), 0, 0)
 }
 
 // rowsContent renders the item rows (branch/root headers included) and
-// reports the visible line offset of m.cursor within them, for use with
-// viewport.EnsureVisible.
-func (m Model) rowsContent() (content string, cursorLine int) {
+// reports, for each rendered line, the index of the item it shows, or -1 for
+// header lines.
+func (m Model) rowsContent() (content string, lines []int) {
 	var b strings.Builder
-	line := 0
-	m.renderRows(&b, &line, &cursorLine)
-	return strings.TrimSuffix(b.String(), "\n"), cursorLine
+	m.renderRows(&b, &lines)
+	return strings.TrimSuffix(b.String(), "\n"), lines
 }
 
-func (m Model) renderRows(b *strings.Builder, line, cursorLine *int) {
+func (m Model) renderRows(b *strings.Builder, lines *[]int) {
 	groups := map[string][]int{}
 	var branches []string
 	var roots []int
@@ -673,28 +716,25 @@ func (m Model) renderRows(b *strings.Builder, line, cursorLine *int) {
 		}
 		b.WriteString(header)
 		b.WriteByte('\n')
-		*line++
-		m.renderItemRows(b, groups[branch], line, cursorLine)
+		*lines = append(*lines, -1)
+		m.renderItemRows(b, groups[branch], lines)
 	}
 	if len(roots) > 0 {
 		b.WriteString("roots  ")
 		b.WriteString(style("2", rootCount(len(roots))))
 		b.WriteByte('\n')
-		*line++
-		m.renderItemRows(b, roots, line, cursorLine)
+		*lines = append(*lines, -1)
+		m.renderItemRows(b, roots, lines)
 	}
 	if len(m.items) == 0 {
 		b.WriteString(style("2", "(no worktrees)"))
 		b.WriteByte('\n')
-		*line++
+		*lines = append(*lines, -1)
 	}
 }
 
-func (m Model) renderItemRows(b *strings.Builder, rows []int, line, cursorLine *int) {
+func (m Model) renderItemRows(b *strings.Builder, rows []int, lines *[]int) {
 	for _, i := range rows {
-		if i == m.cursor {
-			*cursorLine = *line
-		}
 		item := m.items[i]
 		mark := " "
 		radio := style("2", "○")
@@ -721,7 +761,7 @@ func (m Model) renderItemRows(b *strings.Builder, rows []int, line, cursorLine *
 		}
 		b.WriteString(row)
 		b.WriteByte('\n')
-		*line++
+		*lines = append(*lines, i)
 	}
 }
 
