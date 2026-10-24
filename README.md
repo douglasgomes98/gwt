@@ -31,6 +31,18 @@ brew tap douglasgomes98/gwt https://github.com/douglasgomes98/gwt
 brew install douglasgomes98/gwt/gwt
 ```
 
+Always use the fully qualified name `douglasgomes98/gwt/gwt` with Homebrew.
+homebrew-core ships an unrelated `gwt` formula (Google Web Toolkit), and the
+bare name resolves to it, so `brew upgrade gwt` replaces this CLI with that
+package. `gwt upgrade` uses the qualified name. If a bare `brew upgrade gwt`
+already replaced it, reinstall from the tap:
+
+```sh
+brew uninstall --formula gwt
+brew update
+brew install douglasgomes98/gwt/gwt
+```
+
 For local development:
 
 ```sh
@@ -137,7 +149,7 @@ the worktree instead; when you exit, you return to the previous directory.
 | `gwt list --group` | Lists the current branch's worktrees in sibling repositories. |
 | `gwt prune` | Runs `git worktree prune` on discovered repositories. |
 | `gwt update [--all]` | Updates the current repository's clean primary checkout on the base branch, syncing submodules to the recorded commit before and after. `--all` updates every sibling root it can and reports the rest (dirty, off-base, or otherwise failing) as skipped instead of stopping at the first one. |
-| `gwt upgrade` | Updates the installed CLI through Homebrew or Go, whichever manages the running binary. Errors instead of guessing if Homebrew has gwt installed but a version-manager shim (asdf, mise, pyenv, ...) earlier in `$PATH` is running a different gwt binary. |
+| `gwt upgrade` | Updates the installed CLI through Homebrew (`brew upgrade douglasgomes98/gwt/gwt`) or Go, whichever manages the running binary. Errors instead of guessing if Homebrew has gwt installed but a version-manager shim (asdf, mise, pyenv, ...) earlier in `$PATH` is running a different gwt binary. |
 | `gwt skill install --agents|--claude|--codex|--cursor` | Copies the optional `gwt-worktrees` skill into the selected user-level agent directory. Existing skills are left untouched. |
 | `gwt skill update --agents|--claude|--codex|--cursor` | Replaces the selected `gwt-worktrees` skill with the version bundled in gwt. |
 | `gwt checkout-base [--all]` | Checks out the base branch in the current repository's clean primary checkout. `--all` applies it to sibling roots too. |
