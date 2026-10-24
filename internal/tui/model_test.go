@@ -1023,3 +1023,28 @@ func tuiTestRepo(t *testing.T, parent, name string) string {
 	}
 	return dir
 }
+
+func TestListAllKeepsRepositoryOrderAndReportsFirstError(t *testing.T) {
+	repos := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	list := func(repo string) ([]worktree.Item, error) {
+		return []worktree.Item{{Repo: repo}}, nil
+	}
+	items, err := listAll(repos, list)
+	if err != nil || len(items) != len(repos) {
+		t.Fatalf("items %v, err %v", items, err)
+	}
+	for i, item := range items {
+		if item.Repo != repos[i] {
+			t.Fatalf("item %d is %q, want %q", i, item.Repo, repos[i])
+		}
+	}
+	failing := func(repo string) ([]worktree.Item, error) {
+		if repo == "c" || repo == "h" {
+			return nil, fmt.Errorf("broken %s", repo)
+		}
+		return list(repo)
+	}
+	if _, err := listAll(repos, failing); err == nil || err.Error() != "broken c" {
+		t.Fatalf("err = %v, want broken c", err)
+	}
+}

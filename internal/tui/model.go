@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
@@ -87,18 +88,13 @@ func (m Model) load(detailed bool) tea.Cmd {
 		if err != nil {
 			return loaded{err: err, detailed: detailed, loadID: m.loadID}
 		}
-		var items []worktree.Item
-		for _, repo := range repos {
-			var xs []worktree.Item
-			if detailed {
-				xs, err = worktree.List(repo)
-			} else {
-				xs, err = worktree.ListFast(repo)
-			}
-			if err != nil {
-				return loaded{err: err, detailed: detailed, loadID: m.loadID}
-			}
-			items = append(items, xs...)
+		list := worktree.ListFast
+		if detailed {
+			list = worktree.List
+		}
+		items, err := listAll(repos, list)
+		if err != nil {
+			return loaded{err: err, detailed: detailed, loadID: m.loadID}
 		}
 		sort.Slice(items, func(i, j int) bool {
 			if items[i].Primary != items[j].Primary {
@@ -112,6 +108,35 @@ func (m Model) load(detailed bool) tea.Cmd {
 		return loaded{items: items, detailed: detailed, loadID: m.loadID}
 	}
 }
+
+// loadConcurrency bounds how many repositories are listed at once.
+const loadConcurrency = 8
+
+// listAll lists every repository concurrently and returns their items in
+// repository order, or the error of the first repository that failed.
+func listAll(repos []string, list func(string) ([]worktree.Item, error)) ([]worktree.Item, error) {
+	results := make([][]worktree.Item, len(repos))
+	errs := make([]error, len(repos))
+	slots := make(chan struct{}, loadConcurrency)
+	var wg sync.WaitGroup
+	for i, repo := range repos {
+		wg.Go(func() {
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			results[i], errs[i] = list(repo)
+		})
+	}
+	wg.Wait()
+	var items []worktree.Item
+	for i := range repos {
+		if errs[i] != nil {
+			return nil, errs[i]
+		}
+		items = append(items, results[i]...)
+	}
+	return items, nil
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	newM, cmd := m.dispatch(msg)
 	newM.syncViewport()
