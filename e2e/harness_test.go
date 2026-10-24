@@ -27,7 +27,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	gwtBinary = filepath.Join(dir, "gwt")
-	build := exec.Command("go", "build", "-o", gwtBinary, "github.com/douglasgomes98/gwt/cmd/gwt")
+	build := exec.Command("go", "build", "-o", gwtBinary, "github.com/douglasgomes98/gwt/cmd/gwt") // #nosec G204 -- fixed package; the output path is a fresh temp dir.
 	build.Stdout, build.Stderr = os.Stdout, os.Stderr
 	if err := build.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "build gwt:", err)
@@ -53,10 +53,14 @@ type terminal struct {
 	exited chan struct{}
 }
 
-// startTUI launches the gwt TUI in dir with an isolated HOME, sized w×h, and
-// waits until the worktree status has finished loading.
-func startTUI(t *testing.T, dir string, w, h int) *terminal {
+// termWidth is the width every scenario starts with; Resize changes it.
+const termWidth = 90
+
+// startTUI launches the gwt TUI in dir with an isolated HOME, sized
+// termWidth×h, and waits until the worktree status has finished loading.
+func startTUI(t *testing.T, dir string, h int) *terminal {
 	t.Helper()
+	w := termWidth
 	home := t.TempDir()
 	cmd := exec.Command(gwtBinary)
 	cmd.Dir = dir
@@ -295,7 +299,7 @@ func group(t *testing.T, n int, features map[string][]int) string {
 
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("git", args...) // #nosec G204 -- arguments come from the test scenarios.
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

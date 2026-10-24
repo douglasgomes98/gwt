@@ -15,7 +15,7 @@ import (
 //	 7 roots  25 roots        (repo01..25, on main)
 //	   …
 //	14 [q/esc] quit
-const width, height = 90, 16
+const height = 16
 
 // bullet is the screen column of a row's ○/◉ radio.
 const bullet = 2
@@ -29,7 +29,7 @@ func selectedCount(term *terminal) int {
 }
 
 func TestE2EPageKeysMoveFocusAndKeepIt(t *testing.T) {
-	term := startTUI(t, standardGroup(t), width, height)
+	term := startTUI(t, standardGroup(t), height)
 	term.Press("pgdown", focusOn("repo09", "main"))
 	term.Press("down", focusOn("repo10", "main"))
 	if term.Row("AG-1") >= 0 {
@@ -46,7 +46,7 @@ func TestE2EPageKeysMoveFocusAndKeepIt(t *testing.T) {
 }
 
 func TestE2EClickSelectsExactlyLikeSpace(t *testing.T) {
-	term := startTUI(t, standardGroup(t), width, height)
+	term := startTUI(t, standardGroup(t), height)
 	term.Click(bullet, term.Row("repo02.AG-1"), shows("AG-1", "3 worktrees selected"))
 	if y, _ := term.Focused(); y != term.Row("repo02.AG-1") {
 		t.Fatalf("click did not focus the clicked row:\n%s", strings.Join(term.Screen(), "\n"))
@@ -68,7 +68,7 @@ func TestE2EClickSelectsExactlyLikeSpace(t *testing.T) {
 }
 
 func TestE2EClickAfterWheelHitsTheRowUnderThePointer(t *testing.T) {
-	term := startTUI(t, standardGroup(t), width, height)
+	term := startTUI(t, standardGroup(t), height)
 	for range 3 {
 		before := strings.Join(term.Screen(), "\n")
 		term.Wheel(true, bullet, 5, func(s string) bool { return s != before })
@@ -85,14 +85,14 @@ func TestE2EClickAfterWheelHitsTheRowUnderThePointer(t *testing.T) {
 }
 
 func TestE2EClickAfterResize(t *testing.T) {
-	term := startTUI(t, standardGroup(t), width, height)
+	term := startTUI(t, standardGroup(t), height)
 	term.Resize(50, 10, func(s string) bool { return strings.Count(s, "\n") <= 9 && strings.Contains(s, "quit") })
 	term.Click(bullet, term.Row("repo02.AG-1"), shows("AG-1", "3 worktrees selected"))
 }
 
 func TestE2EMouseOnlyCreateAndRemove(t *testing.T) {
 	dir := standardGroup(t)
-	term := startTUI(t, dir, width, height)
+	term := startTUI(t, dir, height)
 	term.Click(bullet, term.Row("repo01", "main"), shows("[enter] commands"))
 	term.Click(bullet, term.Row("repo02", "main"), focusOn("repo02", "◉"))
 	term.ClickText("[enter] commands", shows("create worktrees"))
@@ -124,7 +124,7 @@ func TestE2EMouseOnlyCreateAndRemove(t *testing.T) {
 }
 
 func TestE2EPaletteCloseClearAndQuitHints(t *testing.T) {
-	term := startTUI(t, standardGroup(t), width, height)
+	term := startTUI(t, standardGroup(t), height)
 	term.Click(bullet, term.Row("repo02.AG-1"), shows("[enter] commands"))
 	term.ClickText("[enter] commands", shows("[esc] close"))
 	term.ClickText("[esc] close", shows("[esc] clear"))
@@ -137,7 +137,7 @@ func TestE2EPaletteCloseClearAndQuitHints(t *testing.T) {
 }
 
 func TestE2ERowClicksAreIgnoredUnderThePalette(t *testing.T) {
-	term := startTUI(t, standardGroup(t), width, 30)
+	term := startTUI(t, standardGroup(t), 30)
 	term.Click(bullet, term.Row("repo01", "main"), shows("[enter] commands"))
 	term.Press("enter", shows("[esc] close"))
 	term.Click(bullet, term.Row("repo02", "main"), shows("[esc] close"))
