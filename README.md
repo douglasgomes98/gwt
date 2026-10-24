@@ -177,7 +177,9 @@ progress indicator until the operation completes.
 `gwt` uses the first config file it finds, in this order (files are not
 merged):
 
-1. `gwt.yml` in the directory where you run the command.
+1. `gwt.yml` in the directory where you run the command, then in each parent
+   directory up to (but not including) your home directory, nearest first.
+   Outside your home directory the search continues up to the filesystem root.
 2. `$XDG_CONFIG_HOME/gwt/config.yml` (on Linux; the platform user config
    directory elsewhere).
 3. `~/.config/gwt/config.yml`.
@@ -195,7 +197,16 @@ agent: claude
 All fields are optional. The defaults are `sibling`, `main`, `code`, and
 `claude`.
 
-Run `gwt init-config` to create a `gwt.yml` in the current directory. It uses
+Because parent directories are searched, a single `gwt.yml` in a directory
+that holds several repositories applies to all of them and to their
+worktrees. For example, with a global `~/.config/gwt/config.yml` set to
+`layout: branch`, a `~/dev/personal/gwt.yml` set to `layout: sibling` makes
+every repository under `~/dev/personal` use `sibling`, while repositories
+elsewhere keep `branch`. The nearest file wins as a whole; fields are not
+merged across files.
+
+Run `gwt init-config` to create a `gwt.yml` in the current directory (run it
+from a parent directory to share the file across the repositories below it). It uses
 the active configuration values and never overwrites an existing file.
 
 ### Layouts

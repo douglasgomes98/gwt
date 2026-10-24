@@ -29,7 +29,7 @@ type fileConfig struct {
 func Load(start string) (Config, error) {
 	defaults := Config{Layout: "sibling", BaseBranch: "main", Editor: "code", Agent: "claude"}
 	for _, path := range configPaths(start) {
-		data, err := os.ReadFile(path) // #nosec G304 -- config paths are fixed to the working directory or user config directory.
+		data, err := os.ReadFile(path) // #nosec G304 -- config paths are fixed to the working directory, its parents, or the user config directory.
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -84,17 +84,33 @@ func rejectNullFields(data []byte) error {
 }
 
 func configPaths(start string) []string {
-	paths := []string{filepath.Join(start, "gwt.yml")}
+	home, homeErr := os.UserHomeDir()
+	paths := localConfigPaths(start, home)
 	if dir, err := os.UserConfigDir(); err == nil {
 		paths = append(paths, filepath.Join(dir, "gwt", "config.yml"))
 	}
-	if home, err := os.UserHomeDir(); err == nil {
+	if homeErr == nil {
 		paths = append(paths,
 			filepath.Join(home, ".config", "gwt", "config.yml"),
 			filepath.Join(home, "gwt.yml"),
 		)
 	}
 	return paths
+}
+
+// localConfigPaths lists gwt.yml from start up to the filesystem root, nearest
+// first. The walk stops below home so ~/gwt.yml keeps its place as the last
+// fallback, unless start is home itself.
+func localConfigPaths(start, home string) []string {
+	var paths []string
+	for dir := filepath.Clean(start); ; {
+		paths = append(paths, filepath.Join(dir, "gwt.yml"))
+		parent := filepath.Dir(dir)
+		if parent == dir || (home != "" && parent == filepath.Clean(home)) {
+			return paths
+		}
+		dir = parent
+	}
 }
 
 func apply(raw fileConfig, defaults Config) (Config, error) {
