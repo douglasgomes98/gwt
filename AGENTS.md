@@ -22,6 +22,7 @@ Run these from the repository root:
 make deps       # download Go module dependencies
 make lint       # run the GolangCI-Lint quality gate
 make test       # go vet ./... followed by go test ./...
+make e2e        # drive the real binary in a pseudo-terminal (e2e/)
 make build      # build bin/gwt with version metadata
 make coverage   # write coverage.out and print function coverage
 make install    # install gwt into GOBIN or GOPATH/bin
@@ -45,7 +46,11 @@ Follow TDD: write or update unit tests before implementing behavior changes.
 Tests use Go's built-in `testing` package. Cover all observable behavior and
 error paths, especially Git operations and destructive-worktree safeguards.
 Use `t.TempDir()` and temporary Git repositories rather than local checkout
-paths; use `t.Setenv()` for environment-dependent behavior. Keep project
+paths; use `t.Setenv()` for environment-dependent behavior. For TUI-facing
+changes, add or update a scenario in `e2e/`: it runs the built binary in a
+pseudo-terminal, sends the bytes a terminal sends for keys and mouse clicks,
+and asserts on the rendered screen. These tests use the `e2e` build tag, so
+they run with `make e2e` and in CI, not in `make test`. Keep project
 coverage above 90%; run `make lint`, `make test`, and `make coverage` before
 opening a pull request.
 

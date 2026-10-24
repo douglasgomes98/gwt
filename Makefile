@@ -3,7 +3,7 @@ BIN := bin/$(BINARY)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: deps build lint test coverage install version
+.PHONY: deps build lint test e2e coverage install version
 deps:
 	go mod download
 	npm ci
@@ -15,6 +15,8 @@ lint:
 test:
 	go vet ./...
 	go test ./...
+e2e:
+	go test -tags e2e -count=1 ./e2e
 coverage:
 	go test ./... -coverprofile=coverage.out
 	go tool cover -func=coverage.out

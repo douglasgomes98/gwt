@@ -5,6 +5,9 @@ go 1.26
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.0.8
+	github.com/charmbracelet/x/ansi v0.11.7
+	github.com/charmbracelet/x/vt v0.1.0
+	github.com/creack/pty v1.1.24
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -12,7 +15,7 @@ require (
 	charm.land/lipgloss/v2 v2.0.5 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
-	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
