@@ -69,11 +69,14 @@ Do not use `gwt open` to change the current agent's directory: it starts a child
 
 Where `gwt add` places a worktree is not something the agent chooses per
 call — it comes from the `layout` setting the user's machine already has, in
-a project-local `gwt.yml` or the global `~/.config/gwt/config.yml`. Before
-relying on where a worktree will land, check for one:
+the nearest `gwt.yml` in the current directory or any parent directory below
+`$HOME`, or else the global `~/.config/gwt/config.yml`. A `gwt.yml` in a folder
+that holds several repositories applies to all of them. Before relying on
+where a worktree will land, find the file that applies:
 
 ```sh
-cat gwt.yml 2>/dev/null || cat ~/.config/gwt/config.yml 2>/dev/null
+d=$PWD; while [ "$d" != "$HOME" ] && [ "$d" != / ] && [ ! -f "$d/gwt.yml" ]; do d=$(dirname "$d"); done
+cat "$d/gwt.yml" 2>/dev/null || cat ~/.config/gwt/config.yml 2>/dev/null
 ```
 
 No file, or no `layout` key, means the `sibling` default applies. If worktrees

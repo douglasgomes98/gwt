@@ -76,7 +76,7 @@ request.
 
 ## Configuration & Safety
 
-Configuration is loaded from `gwt.yml` in the working directory or
-`~/.config/gwt/config.yml`. Never put personal paths or credentials in examples.
+Configuration is loaded from the nearest `gwt.yml` in the working directory
+or its parents (stopping below `$HOME`), or else from `~/.config/gwt/config.yml`. Never put personal paths or credentials in examples.
 Treat `gwt rm` as destructive: preserve the protection against removing the
 primary checkout and test any change to removal behavior carefully.

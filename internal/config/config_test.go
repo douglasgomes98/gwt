@@ -169,3 +169,78 @@ func TestLoadPrefersLocalOverUserConfig(t *testing.T) {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
+
+func writeConfig(t *testing.T, path, text string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadFindsConfigInParentDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, filepath.Join(dir, "gwt.yml"), "layout: inside\n")
+	start := filepath.Join(dir, "repo", "nested")
+	if err := os.MkdirAll(start, 0700); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(start)
+	if err != nil || got.Layout != "inside" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestLoadPrefersNearestParentConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, filepath.Join(dir, "gwt.yml"), "layout: inside\n")
+	writeConfig(t, filepath.Join(dir, "group", "gwt.yml"), "layout: grouped\n")
+	got, err := Load(filepath.Join(dir, "group", "repo"))
+	if err != nil || got.Layout != "grouped" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestLoadPrefersParentConfigOverUserConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	writeConfig(t, filepath.Join(home, ".config", "gwt", "config.yml"), "layout: branch\n")
+	writeConfig(t, filepath.Join(home, "dev", "group", "gwt.yml"), "layout: inside\n")
+	got, err := Load(filepath.Join(home, "dev", "group", "repo"))
+	if err != nil || got.Layout != "inside" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	got, err = Load(filepath.Join(home, "dev", "other", "repo"))
+	if err != nil || got.Layout != "branch" {
+		t.Fatalf("outside group: got %+v, %v", got, err)
+	}
+}
+
+func TestLoadKeepsHomeConfigBelowUserConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
+	writeConfig(t, filepath.Join(home, "gwt.yml"), "layout: inside\n")
+	writeConfig(t, filepath.Join(home, ".config", "gwt", "config.yml"), "layout: branch\n")
+	got, err := Load(filepath.Join(home, "dev", "repo"))
+	if err != nil || got.Layout != "branch" {
+		t.Fatalf("below home: got %+v, %v", got, err)
+	}
+	got, err = Load(home)
+	if err != nil || got.Layout != "inside" {
+		t.Fatalf("at home: got %+v, %v", got, err)
+	}
+}
+
+func TestLoadParentValidationErrorIncludesConfigPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gwt.yml")
+	writeConfig(t, path, "layout: unknown\n")
+	_, err := Load(filepath.Join(dir, "repo"))
+	if err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("error %v does not include %q", err, path)
+	}
+}
