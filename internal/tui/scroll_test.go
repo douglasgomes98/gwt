@@ -60,21 +60,64 @@ func TestViewScrollsToKeepCursorVisible(t *testing.T) {
 	}
 }
 
-func TestPageDownScrollsWithoutMovingCursor(t *testing.T) {
+func TestPageKeysMoveCursorByPage(t *testing.T) {
 	m := modelWith(manyItems())
 	m = resizeSmall(m)
+	page := m.viewport.Height()
 	topRepo := m.items[0].Repo
-	before := m.View().Content
 	m = press(m, "pgdown")
-	after := m.View().Content
+	if m.cursor != page {
+		t.Fatalf("pgdown cursor = %d, want %d", m.cursor, page)
+	}
+	view := m.View().Content
+	if !strings.Contains(view, m.items[m.cursor].Repo+" ") {
+		t.Fatalf("cursor row scrolled out of view after pgdown: %q", view)
+	}
+	if strings.Contains(view, topRepo+" ") {
+		t.Fatalf("pgdown should scroll %s's row out of view: %q", topRepo, view)
+	}
+	m = press(m, "down")
+	if m.cursor != page+1 || strings.Contains(m.View().Content, topRepo+" ") {
+		t.Fatalf("down after pgdown jumped back: cursor %d", m.cursor)
+	}
+	m = press(m, "ctrl+u")
+	if m.cursor != 1 {
+		t.Fatalf("ctrl+u cursor = %d, want 1", m.cursor)
+	}
+	m = press(m, "pgup")
 	if m.cursor != 0 {
-		t.Fatalf("pgdown moved the cursor: %d", m.cursor)
+		t.Fatalf("pgup should stop at the first item: %d", m.cursor)
 	}
-	if before == after {
-		t.Fatalf("pgdown did not change the visible rows")
+	for range 10 {
+		m = press(m, "ctrl+d")
 	}
-	if strings.Contains(after, topRepo+" ") {
-		t.Fatalf("pgdown should scroll %s's row out of view: %q", topRepo, after)
+	if m.cursor != len(m.items)-1 {
+		t.Fatalf("ctrl+d should stop at the last item: %d", m.cursor)
+	}
+}
+
+func TestPageKeysWithoutWindowSizeMoveOneItem(t *testing.T) {
+	m := modelWith(manyItems())
+	m = press(m, "pgdown")
+	if m.cursor != 1 {
+		t.Fatalf("pgdown without a window size: cursor %d, want 1", m.cursor)
+	}
+}
+
+func TestHomeAndEndJumpToListEdges(t *testing.T) {
+	for _, keys := range [][2]string{{"end", "home"}, {"G", "g"}} {
+		m := resizeSmall(modelWith(manyItems()))
+		m = press(m, keys[0])
+		if m.cursor != len(m.items)-1 {
+			t.Fatalf("%s cursor = %d", keys[0], m.cursor)
+		}
+		if !strings.Contains(m.View().Content, m.items[m.cursor].Repo+" ") {
+			t.Fatalf("%s did not scroll to the cursor", keys[0])
+		}
+		m = press(m, keys[1])
+		if m.cursor != 0 {
+			t.Fatalf("%s cursor = %d", keys[1], m.cursor)
+		}
 	}
 }
 
