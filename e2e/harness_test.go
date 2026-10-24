@@ -78,30 +78,7 @@ func startTUI(t *testing.T, dir string, w, h int) *terminal {
 		_, focused := term.Focused()
 		return focused != "" && strings.Contains(s, " worktrees") && !strings.Contains(s, "checking status")
 	})
-	term.awaitInput()
 	return term
-}
-
-// awaitInput returns once gwt reacts to keys. For a few hundred milliseconds
-// after the first frame, input is dropped while the terminal handshake
-// settles, so it nudges the focus down until a press lands, then puts it back.
-func (term *terminal) awaitInput() {
-	term.t.Helper()
-	_, first := term.Focused()
-	deadline := time.Now().Add(waitTimeout)
-	for {
-		if _, err := term.pty.Write([]byte("j")); err != nil {
-			term.t.Fatal(err)
-		}
-		time.Sleep(50 * time.Millisecond)
-		if _, line := term.Focused(); line != first {
-			break
-		}
-		if time.Now().After(deadline) {
-			term.t.Fatalf("gwt never accepted input:\n%s", strings.Join(term.Screen(), "\n"))
-		}
-	}
-	term.Press("home", func(string) bool { _, line := term.Focused(); return line == first })
 }
 
 // answerQueries forwards the emulator's replies (device attributes, cursor
