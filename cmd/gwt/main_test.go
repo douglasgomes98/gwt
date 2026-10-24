@@ -4,9 +4,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
-	"runtime/debug"
 )
 
 func TestVersionFromBuildInfo(t *testing.T) {
