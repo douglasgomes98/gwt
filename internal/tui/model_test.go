@@ -52,16 +52,22 @@ func TestFeatureSelectionDoesNotSelectRootWithSameBranch(t *testing.T) {
 	}
 }
 
-func TestFeatureSelectionRequiresEscapeBeforeChangingGroups(t *testing.T) {
+func TestFeatureSelectionSwitchesToAnotherGroup(t *testing.T) {
 	m := modelWith([]worktree.Item{
 		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+		{Repo: "web", Branch: "AG-1", Path: "/web.AG-1"},
 		{Repo: "api", Branch: "AG-2", Path: "/api.AG-2"},
+		{Repo: "web", Branch: "AG-2", Path: "/web.AG-2"},
 	})
 	m = press(m, "space")
-	m.cursor = 1
+	m.cursor = 2
 	m = press(m, "space")
-	if m.feature != "AG-1" || !m.selected["/api.AG-1"] || m.selected["/api.AG-2"] {
-		t.Fatalf("feature changed without escape: %#v", m)
+	if m.feature != "AG-2" || m.selected["/api.AG-1"] || m.selected["/web.AG-1"] || !m.selected["/api.AG-2"] || !m.selected["/web.AG-2"] {
+		t.Fatalf("selection did not switch to AG-2: %#v", m.selected)
+	}
+	m = press(m, "space")
+	if m.feature != "AG-2" || m.selected["/api.AG-2"] || !m.selected["/web.AG-2"] {
+		t.Fatalf("space in the new group should toggle one row: %#v", m.selected)
 	}
 }
 
@@ -859,7 +865,7 @@ func TestViewUsesConsistentKeyHints(t *testing.T) {
 		t.Fatal(view)
 	}
 	m.selected["/api"] = true
-	if view := m.View().Content; !strings.Contains(view, "[enter] commands  [q] quit") {
+	if view := m.View().Content; !strings.Contains(view, "[enter] commands  [esc] clear  [q] quit") {
 		t.Fatal(view)
 	}
 	m.input, m.branch, m.message = true, "AG-1", "branch: "

@@ -144,3 +144,12 @@ func TestViewWithoutWindowSizeRendersEverythingUnclipped(t *testing.T) {
 		}
 	}
 }
+
+func TestScrollingUpRevealsTheGroupHeader(t *testing.T) {
+	m := resizeSmall(modelWith(manyItems()))
+	m = press(m, "end")
+	m = press(m, "home")
+	if !strings.HasPrefix(m.View().Content, "roots") {
+		t.Fatalf("home hid the group header: %q", m.View().Content)
+	}
+}

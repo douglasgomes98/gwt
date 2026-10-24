@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/douglasgomes98/gwt/internal/config"
 	"github.com/douglasgomes98/gwt/internal/worktree"
 )
@@ -139,7 +141,7 @@ func (m Model) dispatch(msg tea.Msg) (Model, tea.Cmd) {
 		m.viewport, cmd = m.viewport.Update(x)
 		return m, cmd
 	case tea.MouseClickMsg:
-		return m.handleClick(x.Mouse()), nil
+		return m.handleClick(x.Mouse())
 	}
 	return m, nil
 }
@@ -303,27 +305,71 @@ func (m Model) pageSize() int {
 // as a click on the row's ○/◉ radio, which is drawn at column 2.
 const bulletReach = 3
 
-// handleClick focuses the clicked item row; a click on its radio also
-// toggles the selection exactly as Space does. Clicks are ignored while the
-// palette, confirmation or branch prompt is open.
-func (m Model) handleClick(mouse tea.Mouse) Model {
-	if mouse.Button != tea.MouseLeft || m.palette || m.confirm || m.input {
-		return m
+// hintPattern matches a footer key hint such as "[enter/y] confirm",
+// capturing its keys.
+var hintPattern = regexp.MustCompile(`\[([a-z/]+)\] [a-z]+`)
+
+// hintKeys maps the first key of a footer hint to the key press it stands for.
+var hintKeys = map[string]tea.KeyPressMsg{
+	"enter": {Code: tea.KeyEnter},
+	"esc":   {Code: tea.KeyEscape},
+	"q":     {Code: 'q', Text: "q"},
+}
+
+// handleClick gives the mouse the keyboard's behavior: a footer hint acts as
+// its key, a palette command runs as if focused and confirmed with Enter, and
+// an item row is focused, with a click on its radio toggling the selection
+// exactly as Space does. Rows ignore clicks while the palette, confirmation
+// or branch prompt is open, as they ignore Space.
+func (m Model) handleClick(mouse tea.Mouse) (Model, tea.Cmd) {
+	if mouse.Button != tea.MouseLeft || mouse.Y < 0 {
+		return m, nil
 	}
 	m.result = ""
-	if m.height > 0 && mouse.Y >= m.viewport.Height() {
-		return m
-	}
 	_, lines := m.rowsContent()
+	listHeight := len(lines)
+	if m.height > 0 {
+		listHeight = m.viewport.Height()
+	}
+	if mouse.Y >= listHeight {
+		return m.clickFooter(mouse, listHeight)
+	}
 	line := mouse.Y + m.viewport.YOffset()
-	if mouse.Y < 0 || line >= len(lines) || lines[line] < 0 {
-		return m
+	if m.palette || m.confirm || m.input || line >= len(lines) || lines[line] < 0 {
+		return m, nil
 	}
 	m.cursor = lines[line]
 	if mouse.X <= bulletReach {
 		m.toggleSelection()
 	}
-	return m
+	return m, nil
+}
+
+// clickFooter resolves a click below the item list against the footer as it
+// is rendered on screen.
+func (m Model) clickFooter(mouse tea.Mouse, listHeight int) (Model, tea.Cmd) {
+	screen := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if mouse.Y >= len(screen) {
+		return m, nil
+	}
+	line := screen[mouse.Y]
+	for _, match := range hintPattern.FindAllStringSubmatchIndex(line, -1) {
+		start, end := ansi.StringWidth(line[:match[0]]), ansi.StringWidth(line[:match[1]])
+		key, ok := hintKeys[strings.SplitN(line[match[2]:match[3]], "/", 2)[0]]
+		if ok && mouse.X >= start && mouse.X < end {
+			return m.handleKeyPress(key)
+		}
+	}
+	if !m.palette {
+		return m, nil
+	}
+	header := slices.Index(screen[listHeight:], "commands")
+	actions := m.availableActions()
+	if i := mouse.Y - listHeight - header - 1; header >= 0 && i >= 0 && i < len(actions) {
+		m.palette, m.pCursor = true, i
+		return m.execute(actions[i])
+	}
+	return m, nil
 }
 
 func (m *Model) toggleSelection() {
@@ -336,8 +382,11 @@ func (m *Model) toggleSelection() {
 		m.selected[item.Path] = !m.selected[item.Path]
 		return
 	}
-	if item.Detached || (m.feature != "" && m.feature != item.Branch) {
+	if item.Detached {
 		return
+	}
+	if m.feature != "" && m.feature != item.Branch {
+		m.clearFeature()
 	}
 	if m.feature == "" {
 		m.feature = item.Branch
@@ -676,10 +725,16 @@ func (m *Model) syncViewport() {
 }
 
 // scrollToCursor keeps the highlighted item within the viewport after the
-// cursor or item list changes.
+// cursor or item list changes. When scrolling up to the first item of a
+// group, its header is revealed too.
 func (m *Model) scrollToCursor() {
 	_, lines := m.rowsContent()
-	m.viewport.EnsureVisible(max(0, slices.Index(lines, m.cursor)), 0, 0)
+	line := max(0, slices.Index(lines, m.cursor))
+	if line > 0 && lines[line-1] < 0 && m.viewport.YOffset() >= line && m.viewport.Height() > 1 {
+		m.viewport.SetYOffset(line - 1)
+		return
+	}
+	m.viewport.EnsureVisible(line, 0, 0)
 }
 
 // rowsContent renders the item rows (branch/root headers included) and
@@ -834,6 +889,8 @@ func (m Model) renderPalette(b *strings.Builder) {
 		} else {
 			b.WriteByte('\n')
 			b.WriteString(keyHint("enter", "commands", "1;38;5;114", "0"))
+			b.WriteString("  ")
+			b.WriteString(keyHint("esc", "clear", "2", "2"))
 			b.WriteString("  ")
 			b.WriteString(keyHint("q", "quit", "2", "2"))
 		}

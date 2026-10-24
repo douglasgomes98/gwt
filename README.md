@@ -154,13 +154,13 @@ The opening flags are mutually exclusive:
 
 | Key | Action |
 | --- | --- |
-| `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses toggle only the focused row. Detached checkouts cannot be selected. |
+| `Space` | Selects a primary checkout or feature. The first feature selection marks all of its worktrees; later presses in that feature toggle only the focused row, and selecting a row of another feature switches the selection to that feature. Detached checkouts cannot be selected. |
 | `Enter` | Opens the contextual palette. A single selected root can be opened with the shell, editor, or agent; a group of selected worktrees can be opened in the editor. Root maintenance actions are shown only when applicable: `update` requires every selected root to be clean and on the base branch; `checkout-base` requires clean roots; and `discard` appears when a selected root has local changes. `rm --all` removes every non-primary worktree in selected roots after confirmation. Feature actions (`open`, `open -e`, `open -a`, `rm`, `rm --all`, and `prune`) depend on selection and configuration. Choosing `add` opens the branch prompt. `discard` asks for confirmation and removes all local changes from selected roots and initialized submodules. |
 | `j` / `k` or arrows | Moves focus in the list or palette. |
 | `PgUp` / `PgDn` or `Ctrl+U` / `Ctrl+D` | Moves focus a screen at a time; the list scrolls with it. |
 | `Home` / `End` or `g` / `G` | Moves focus to the first or last row. |
-| Mouse | Clicking a row's `○`/`◉` selects it exactly like `Space`; clicking elsewhere on a row only moves focus. Clicks are ignored while the palette, confirmation, or branch prompt is open. The wheel scrolls the list without moving focus. |
-| `Esc` | Closes the palette without clearing the selection. |
+| Mouse | Mirrors the keys: clicking a row's `○`/`◉` selects it exactly like `Space`, and clicking elsewhere on a row only moves focus. Every `[key] action` hint in the footer is clickable and does what its key does, and clicking a command in the palette runs it as if focused and confirmed with `Enter` (removal and discard still ask for confirmation). Rows ignore clicks while the palette, confirmation, or branch prompt is open. The wheel scrolls the list without moving focus. |
+| `Esc` | Closes the palette without clearing the selection; in the list, clears the selection, or quits when nothing is selected. |
 | `q` | Quits. |
 
 When the list of worktrees is taller than the terminal, it scrolls to keep
