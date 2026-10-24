@@ -130,15 +130,22 @@ func TestLoadRejectsTopLevelNullConfig(t *testing.T) {
 
 func TestLoadFallsBackToUserConfigLocations(t *testing.T) {
 	for name, rel := range map[string]string{
-		"xdg":  filepath.Join("xdg", "gwt", "config.yml"),
-		"dot":  filepath.Join(".config", "gwt", "config.yml"),
-		"home": "gwt.yml",
+		"platform": "", // os.UserConfigDir: $XDG_CONFIG_HOME on Linux, ~/Library/Application Support on macOS
+		"dot":      filepath.Join(".config", "gwt", "config.yml"),
+		"home":     "gwt.yml",
 	} {
 		t.Run(name, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
 			t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdg"))
 			path := filepath.Join(home, rel)
+			if rel == "" {
+				dir, err := os.UserConfigDir()
+				if err != nil {
+					t.Fatal(err)
+				}
+				path = filepath.Join(dir, "gwt", "config.yml")
+			}
 			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 				t.Fatal(err)
 			}

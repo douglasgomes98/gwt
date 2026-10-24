@@ -52,16 +52,22 @@ func TestFeatureSelectionDoesNotSelectRootWithSameBranch(t *testing.T) {
 	}
 }
 
-func TestFeatureSelectionRequiresEscapeBeforeChangingGroups(t *testing.T) {
+func TestFeatureSelectionSwitchesToAnotherGroup(t *testing.T) {
 	m := modelWith([]worktree.Item{
 		{Repo: "api", Branch: "AG-1", Path: "/api.AG-1"},
+		{Repo: "web", Branch: "AG-1", Path: "/web.AG-1"},
 		{Repo: "api", Branch: "AG-2", Path: "/api.AG-2"},
+		{Repo: "web", Branch: "AG-2", Path: "/web.AG-2"},
 	})
 	m = press(m, "space")
-	m.cursor = 1
+	m.cursor = 2
 	m = press(m, "space")
-	if m.feature != "AG-1" || !m.selected["/api.AG-1"] || m.selected["/api.AG-2"] {
-		t.Fatalf("feature changed without escape: %#v", m)
+	if m.feature != "AG-2" || m.selected["/api.AG-1"] || m.selected["/web.AG-1"] || !m.selected["/api.AG-2"] || !m.selected["/web.AG-2"] {
+		t.Fatalf("selection did not switch to AG-2: %#v", m.selected)
+	}
+	m = press(m, "space")
+	if m.feature != "AG-2" || m.selected["/api.AG-2"] || !m.selected["/web.AG-2"] {
+		t.Fatalf("space in the new group should toggle one row: %#v", m.selected)
 	}
 }
 
@@ -859,7 +865,7 @@ func TestViewUsesConsistentKeyHints(t *testing.T) {
 		t.Fatal(view)
 	}
 	m.selected["/api"] = true
-	if view := m.View().Content; !strings.Contains(view, "[enter] commands  [q] quit") {
+	if view := m.View().Content; !strings.Contains(view, "[enter] commands  [esc] clear  [q] quit") {
 		t.Fatal(view)
 	}
 	m.input, m.branch, m.message = true, "AG-1", "branch: "
@@ -1016,4 +1022,87 @@ func tuiTestRepo(t *testing.T, parent, name string) string {
 		}
 	}
 	return dir
+}
+
+func TestListAllKeepsRepositoryOrderAndReportsFirstError(t *testing.T) {
+	repos := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}
+	list := func(repo string) ([]worktree.Item, error) {
+		return []worktree.Item{{Repo: repo}}, nil
+	}
+	items, err := listAll(repos, list)
+	if err != nil || len(items) != len(repos) {
+		t.Fatalf("items %v, err %v", items, err)
+	}
+	for i, item := range items {
+		if item.Repo != repos[i] {
+			t.Fatalf("item %d is %q, want %q", i, item.Repo, repos[i])
+		}
+	}
+	failing := func(repo string) ([]worktree.Item, error) {
+		if repo == "c" || repo == "h" {
+			return nil, fmt.Errorf("broken %s", repo)
+		}
+		return list(repo)
+	}
+	if _, err := listAll(repos, failing); err == nil || err.Error() != "broken c" {
+		t.Fatalf("err = %v, want broken c", err)
+	}
+}
+
+func TestSyncSubmodulesSelectedRoots(t *testing.T) {
+	api := tuiTestRepo(t, t.TempDir(), "api")
+	m := modelWith([]worktree.Item{{Repo: "api", Branch: "main", Path: api, Primary: true, Dirty: true}})
+	m.selected[api] = true
+	m, _ = m.execute(actionSyncSubmodules)
+	if !m.confirm || !strings.Contains(m.View().Content, "sync submodules to the commit recorded in selected roots?") {
+		t.Fatalf("sync submodules did not ask for confirmation: %q", m.View().Content)
+	}
+	m, cmd := m.handleConfirmation(tea.KeyPressMsg{Text: "y"})
+	if cmd == nil || m.busy != actionSyncSubmodules {
+		t.Fatalf("confirmation did not start the sync: %#v", m)
+	}
+	if result := m.syncSubmodulesSelectedRoots()().(operationResult); result.err != nil || result.message != "synced submodules in 1 roots" {
+		t.Fatalf("sync result: %#v", result)
+	}
+	m.selected = map[string]bool{"/missing": true}
+	m.items = []worktree.Item{{Repo: "missing", Branch: "main", Path: "/missing", Primary: true}}
+	if result := m.syncSubmodulesSelectedRoots()().(operationResult); result.err == nil || !strings.Contains(result.err.Error(), "result may be partial") {
+		t.Fatalf("sync of a missing root: %#v", result)
+	}
+}
+
+func TestOperationLabelsDescribeEveryAction(t *testing.T) {
+	for a, want := range map[action]string{
+		actionAdd:            "adding worktrees…",
+		actionAddAll:         "adding worktrees…",
+		actionRemove:         "removing worktrees…",
+		actionRemoveAll:      "removing worktrees…",
+		actionPrune:          "pruning worktrees…",
+		actionUpdate:         "updating roots…",
+		actionCheckoutBase:   "checking out base…",
+		actionDiscard:        "discarding changes…",
+		actionSyncSubmodules: "syncing submodules…",
+		actionOpen:           "working…",
+	} {
+		if got := operationLabel(a); got != want {
+			t.Fatalf("operationLabel(%q) = %q, want %q", a, got, want)
+		}
+	}
+}
+
+func TestLoadErrorsShowUnlessDetailedListIsAlreadyShown(t *testing.T) {
+	m := modelWith(nil)
+	m = m.handleLoaded(loaded{loadID: m.loadID, err: fmt.Errorf("fast failed")})
+	if m.message != "fast failed" {
+		t.Fatalf("fast load error not shown: %q", m.message)
+	}
+	m = m.handleLoaded(loaded{loadID: m.loadID, detailed: true, items: []worktree.Item{{Repo: "api"}}})
+	m = m.handleLoaded(loaded{loadID: m.loadID, detailed: true, err: fmt.Errorf("status failed")})
+	if m.message != "1 worktrees" {
+		t.Fatalf("a failed status refresh replaced the shown list: %q", m.message)
+	}
+	m = m.handleLoaded(loaded{loadID: m.loadID - 1, err: fmt.Errorf("stale")})
+	if m.message != "1 worktrees" {
+		t.Fatalf("a stale load changed the message: %q", m.message)
+	}
 }
