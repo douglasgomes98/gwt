@@ -893,7 +893,7 @@ func TestUpgrade(t *testing.T) {
 		fail       bool
 	}{
 		{"go", "/tmp/gwt", "", "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}, false},
-		{"homebrew", "/tmp/homebrew/bin/gwt", "/tmp/homebrew", "brew", []string{"upgrade", "gwt"}, false},
+		{"homebrew", "/tmp/homebrew/bin/gwt", "/tmp/homebrew", "brew", []string{"upgrade", "douglasgomes98/gwt/gwt"}, false},
 		{"updater failure", "/tmp/gwt", "", "go", []string{"install", "github.com/douglasgomes98/gwt/cmd/gwt@latest"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -901,7 +901,7 @@ func TestUpgrade(t *testing.T) {
 			t.Cleanup(func() { executable, command = oldExecutable, oldCommand })
 			executable = func() (string, error) { return tc.executable, nil }
 			command = func(name string, args ...string) *exec.Cmd {
-				if name == "brew" && slices.Equal(args, []string{"--prefix", "gwt"}) {
+				if name == "brew" && slices.Equal(args, []string{"--prefix", "douglasgomes98/gwt/gwt"}) {
 					if tc.prefix == "" {
 						return exec.Command("false")
 					}
@@ -962,10 +962,10 @@ func TestUpgradeDetectsBrewInstallThroughSymlinkedPrefix(t *testing.T) {
 	t.Cleanup(func() { executable, command = oldExecutable, oldCommand })
 	executable = func() (string, error) { return bin, nil }
 	command = func(name string, args ...string) *exec.Cmd {
-		if name == "brew" && slices.Equal(args, []string{"--prefix", "gwt"}) {
+		if name == "brew" && slices.Equal(args, []string{"--prefix", "douglasgomes98/gwt/gwt"}) {
 			return exec.Command("printf", "%s", opt) // #nosec G204 -- prefix comes from a fixed test fixture.
 		}
-		if name == "brew" && slices.Equal(args, []string{"upgrade", "gwt"}) {
+		if name == "brew" && slices.Equal(args, []string{"upgrade", "douglasgomes98/gwt/gwt"}) {
 			return exec.Command("true")
 		}
 		t.Fatalf("command = %s %v", name, args)
@@ -989,7 +989,7 @@ func TestUpgradeErrorsWhenPathShadowsBrewInstall(t *testing.T) {
 	brewPrefix := filepath.Join(t.TempDir(), "homebrew")
 	executable = func() (string, error) { return shadow, nil }
 	command = func(name string, args ...string) *exec.Cmd {
-		if name == "brew" && slices.Equal(args, []string{"--prefix", "gwt"}) {
+		if name == "brew" && slices.Equal(args, []string{"--prefix", "douglasgomes98/gwt/gwt"}) {
 			return exec.Command("printf", "%s", brewPrefix) // #nosec G204 -- prefix comes from a fixed test fixture.
 		}
 		t.Fatalf("command = %s %v", name, args)
@@ -999,7 +999,7 @@ func TestUpgradeErrorsWhenPathShadowsBrewInstall(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when the running binary is shadowed")
 	}
-	for _, want := range []string{shadow, brewPrefix, "brew upgrade gwt"} {
+	for _, want := range []string{shadow, brewPrefix, "brew upgrade douglasgomes98/gwt/gwt"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error = %v, want it to mention %q", err, want)
 		}
